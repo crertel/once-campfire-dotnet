@@ -42,3 +42,16 @@ app/assets/builds/*
 
 # Ignore our exported zipfiles
 /*.zip
+
+# Nix build symlinks
+/result
+/result-*
+
+# .NET build output. Rails scripts live in /bin, so that directory stays tracked.
+**/obj/
+*.csproj.user
+.vs/
+TestResults/
+/artifacts/
+*.binlog
+.nuget/

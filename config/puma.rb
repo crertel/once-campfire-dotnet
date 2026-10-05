@@ -15,9 +15,9 @@ threads min_threads_count, max_threads_count
 #
 worker_timeout 3600 if ENV.fetch("RAILS_ENV", "development") == "development"
 
-# Bind http listener.
+# Bind http listener. BIND may be set by the Nix app to keep the listener on one address.
 PORT=ENV.fetch("PORT", 3000)
-bind "tcp://0.0.0.0:#{PORT}"
+bind ENV.fetch("BIND", "tcp://0.0.0.0:#{PORT}")
 
 # Specifies the `environment` that Puma will run in.
 #
