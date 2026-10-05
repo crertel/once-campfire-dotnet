@@ -1,0 +1,25 @@
+@model Membership
+@{
+    var involvement = Model.Involvement.ToString().ToLowerInvariant();
+    var label = Model.Involvement switch
+    {
+        Involvement.Everything => "Notifying about all messages",
+        Involvement.Nothing => "Notifications are off",
+        Involvement.Invisible => "Notifications are off and room invisible in sidebar",
+        _ => "Notifying about @ mentions",
+    };
+    var room = MessageMarkup.RoomLabel(Model.Room, Model.UserId);
+    var bell = "/assets/images/notification-bell-" + involvement + ".svg";
+}
+<li class="flex align-center gap margin-none min-width membership-item">
+    <a class="overflow-ellipsis fill-shade txt-primary txt-undecorated" href="/rooms/@Model.RoomId">
+        <strong>@room</strong>
+    </a>
+    <hr class="separator" aria-hidden="true">
+    <span class="txt-small">
+        <button class="btn @involvement" type="button" role="checkbox" aria-checked="true">
+            <img src="@bell" width="20" height="20" alt="" aria-hidden="true">
+            <span class="for-screen-reader">@label</span>
+        </button>
+    </span>
+</li>

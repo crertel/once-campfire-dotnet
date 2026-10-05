@@ -1,0 +1,42 @@
+@model User
+@{
+    var current = Context.Items["User"] as User;
+    var admin = current?.IsAdministrator == true;
+    var self = current?.Id == Model.Id;
+    var role = Model.IsAdministrator ? "Administrator" : "Member";
+    var title = string.IsNullOrWhiteSpace(Model.Bio) ? Model.Name : Model.Name + " – " + Model.Bio;
+    var roleId = "user_" + Model.Id + "_role";
+}
+<li class="flex align-center gap margin-none@(Model.Status == UserStatus.Banned ? " banned" : "")">
+    <figure class="avatar flex-item-no-shrink" style="--avatar-size: 3.75ch;">
+        <a class="btn avatar" href="/users/@Model.Id" title="@title">
+            <img src="@MessageMarkup.AvatarUrl(Model)" alt="" width="48" height="48" aria-hidden="true" loading="lazy">
+        </a>
+    </figure>
+    <div class="min-width">
+        <div class="overflow-ellipsis fill-shade"><strong>@Model.Name</strong></div>
+    </div>
+    <hr class="separator" aria-hidden="true">
+    @if (admin && Model.Status == UserStatus.Active && Model.Role != UserRole.Bot)
+    {
+        <label class="btn txt-small flex-item-no-shrink" for="@roleId">
+            <span class="for-screen-reader">Role: @role</span>
+            <img src="/assets/images/crown.svg" width="20" height="20" alt="" aria-hidden="true">
+            <input type="checkbox" name="role" id="@roleId" value="administrator" hidden @(Model.IsAdministrator ? "checked" : null) @(self ? "disabled" : null)>
+        </label>
+    }
+    @if (admin && Model.Status == UserStatus.Active && !self)
+    {
+        <button class="btn txt-small flex-item-no-shrink btn--negative" type="button">
+            <img src="/assets/images/minus.svg" width="20" height="20" alt="" aria-hidden="true">
+            <span class="for-screen-reader">Delete @Model.Name</span>
+        </button>
+    }
+    @if (self)
+    {
+        <a class="btn txt-small flex-item-no-shrink" href="/users/me/profile" target="_top">
+            <img src="/assets/images/pencil.svg" width="20" height="20" alt="" aria-hidden="true">
+            <span class="for-screen-reader">My settings</span>
+        </a>
+    }
+</li>

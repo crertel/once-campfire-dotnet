@@ -1,48 +1,88 @@
+@using Campfire.Core
 @{
     var account = Context.Items["Account"] as Account;
     var user = Context.Items["User"] as User;
+    var title = ViewData["Title"] as string ?? "Campfire";
+    var bodyClass = ViewData["BodyClass"] as string ?? "";
+    if (user?.IsAdministrator == true)
+        bodyClass = string.IsNullOrEmpty(bodyClass) ? "admin" : bodyClass + " admin";
+    if (account?.Logo is { Length: > 0 })
+        bodyClass = string.IsNullOrEmpty(bodyClass) ? "account-has-logo" : bodyClass + " account-has-logo";
+    var csrf = ViewData["Csrf"] as string;
+    var alert = ViewData["Alert"] as string;
 }
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>@(ViewData["Title"] ?? account?.Name ?? "Campfire")</title>
-    <style>
-        :root { color-scheme: light; --ink: #1c1917; --paper: #faf7f2; --ember: #c2410c; --line: #e7e0d6; }
-        body { margin: 0; font: 16px/1.45 Georgia, "Iowan Old Style", serif; color: var(--ink); background: var(--paper); }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--line); }
-        header a { color: inherit; text-decoration: none; }
-        main { max-width: 46rem; margin: 0 auto; padding: 1.25rem; }
-        form { display: grid; gap: 0.75rem; }
-        input, textarea, button { font: inherit; }
-        input, textarea { padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 0.4rem; background: white; }
-        button, .button { background: var(--ember); color: white; border: 0; border-radius: 0.4rem; padding: 0.55rem 0.9rem; text-decoration: none; }
-        .message { padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
-        .author { margin: 0; font-weight: bold; }
-        .error { color: #9f1239; }
-        textarea { min-height: 5rem; }
-    </style>
+    <title>@title</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    @if (!string.IsNullOrEmpty(csrf))
+    {
+        <meta name="csrf-token" content="@csrf">
+    }
+    @if (user is not null)
+    {
+        <meta name="current-user-id" content="@user.Id">
+        <meta name="current-user-name" content="@user.Name">
+    }
+    @await RenderSectionAsync("Head", required: false)
+    <link rel="stylesheet" href="/assets/application.css">
     @if (!string.IsNullOrEmpty(account?.CustomStyles))
     {
-        <style>@account.CustomStyles</style>
+        <style>@Html.Raw(account.CustomStyles)</style>
     }
 </head>
-<body>
-    <header>
-        <a href="/">@(account?.Name ?? "Campfire")</a>
-        @if (user is not null)
-        {
-            <nav>
-                <a href="/users/me/sidebar">Rooms</a>
-                <a href="/searches">Search</a>
-                <a href="/users/me/profile">@user.Name</a>
-            </nav>
-        }
-    </header>
-    <main>
+<body class="@bodyClass">
+    <a href="#main-content" class="skip-navigation btn">Skip to main content</a>
+    <nav id="nav">
+        @await RenderSectionAsync("Nav", required: false)
+    </nav>
+    @if (!string.IsNullOrEmpty(alert))
+    {
+        <div class="flash">
+            <div class="flash__inner shadow" style="--flash-background: var(--color-negative)">
+                <img src="/assets/images/alert.svg" alt="" width="24" height="24" class="colorize--white">
+            </div>
+            <span class="for-screen-reader" role="alert" aria-atomic="true">@alert</span>
+        </div>
+    }
+    else
+    {
+        <div class="flash" hidden></div>
+    }
+    <main id="main-content">
         @RenderBody()
+        <footer id="footer">
+            @await RenderSectionAsync("Footer", required: false)
+        </footer>
     </main>
+    <aside id="sidebar">
+        @await RenderSectionAsync("Sidebar", required: false)
+    </aside>
+    <dialog class="lightbox" aria-label="Image Viewer (Press escape to close)">
+        <img src="" class="lightbox__image" alt="">
+        <form method="dialog" class="lightbox__btn">
+            <button class="btn" type="submit">
+                <img src="/assets/images/remove.svg" alt="" width="20" height="20">
+                <span class="for-screen-reader">Close image viewer</span>
+            </button>
+        </form>
+        <a href="" class="lightbox__btn--download btn">
+            <img src="/assets/images/download.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Download file</span>
+        </a>
+        <button class="lightbox__btn--share btn" type="button">
+            <img src="/assets/images/share.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Share file</span>
+        </button>
+    </dialog>
+    <a href="https://once.com" id="app-logo" target="_blank" aria-label="Once software from 37signals home page">
+        <img src="/assets/images/campfire-icon.png" alt="Campfire logo" width="256" height="216">
+    </a>
     <script src="/js/signalr.min.js"></script>
     <script src="/js/campfire.js"></script>
 </body>

@@ -1,30 +1,75 @@
 @page "/users/{id:long}"
 @model UserModel
+@using Campfire.Core
 @{
     ViewData["Title"] = Model.Shown?.Name ?? "Person";
+    var shown = Model.Shown;
+    var current = Model.CurrentUser;
 }
-@if (Model.Shown is not null)
+@section Nav {
+    <div class="flex-item-justify-start">
+        <a class="btn" href="/">
+            <img src="/assets/images/arrow-left.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Go Back</span>
+        </a>
+    </div>
+    @if (shown is not null && current?.Id == shown.Id)
+    {
+        <div class="flex align-center gap flex-item-justify-end">
+            <a class="btn" href="/users/me/profile">
+                <img src="/assets/images/pencil.svg" alt="">
+                <span class="for-screen-reader">Edit my profile</span>
+            </a>
+        </div>
+    }
+}
+@if (shown is not null)
 {
-    <h1>@Model.Shown.Name</h1>
-    <p>@Model.Shown.Bio</p>
-    <p>@Model.Shown.Status</p>
-    @if (Model.Shown.Avatar is not null)
-    {
-        <img src="/users/@Model.Shown.Id/avatar" alt="" />
-    }
-    @if (Model.CurrentUser?.IsAdministrator == true && Model.Shown.Id != Model.CurrentUser.Id)
-    {
-        @if (Model.Shown.Status == UserStatus.Banned)
-        {
-            <form method="post" action="/users/@Model.Shown.Id/unban" asp-antiforgery="false">
-                <button type="submit">Unban</button>
-            </form>
-        }
-        else
-        {
-            <form method="post" action="/users/@Model.Shown.Id/ban">
-                <button type="submit">Ban</button>
-            </form>
-        }
-    }
+    <section class="panel txt-align-center">
+        <div class="flex flex-column gap@(shown.Status == UserStatus.Banned ? " banned" : "")">
+            <div class="avatar txt-xx-large center">
+                <img src="@MessageMarkup.AvatarUrl(shown)" alt="Profile avatar" class="avatar" width="300" height="300">
+            </div>
+            <div class="flex flex-column gap">
+                <h1 class="txt-x-large txt-tight-lines margin-none">@shown.Name</h1>
+                @if (current?.IsAdministrator == true && !string.IsNullOrEmpty(shown.EmailAddress))
+                {
+                    <div><a href="mailto:@shown.EmailAddress">@shown.EmailAddress</a></div>
+                }
+                <div>@shown.Bio</div>
+                <div class="for-screen-reader">@shown.Status</div>
+            </div>
+            @if (shown.Status == UserStatus.Active && shown.Role != UserRole.Bot)
+            {
+                <div class="pad-inline-double margin-inline margin-block-start">
+                    <button class="btn btn--reversed full-width txt-large" type="button">
+                        <img src="/assets/images/messages.svg" aria-hidden="true" aria-label="Ping @shown.Name">
+                    </button>
+                </div>
+            }
+            @if (current?.IsAdministrator == true && shown.Id != current.Id)
+            {
+                <div class="margin-block-start">
+                    @if (shown.Status == UserStatus.Banned)
+                    {
+                        <form method="post" action="/users/@shown.Id/unban" asp-antiforgery="false">
+                            <button class="btn btn--negative full-width" type="submit">
+                                <img src="/assets/images/cancel.svg" alt="">
+                                <span>Remove ban</span>
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" action="/users/@shown.Id/ban">
+                            <button class="btn full-width" type="submit">
+                                <img src="/assets/images/cancel.svg" alt="">
+                                <span>Ban @shown.Name</span>
+                            </button>
+                        </form>
+                    }
+                </div>
+            }
+        </div>
+    </section>
 }

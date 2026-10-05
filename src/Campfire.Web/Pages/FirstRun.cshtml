@@ -2,15 +2,9 @@
 @model FirstRunModel
 @{
     ViewData["Title"] = "Set up Campfire";
+    ViewData["BodyClass"] = "signup";
+    ViewData["Csrf"] = Model.Csrf;
+    ViewData["Alert"] = Model.Error;
+    var setup = new SetupForm(Model.Csrf, "/first_run");
 }
-<h1>Set up Campfire</h1>
-@if (!string.IsNullOrEmpty(Model.Error))
-{
-    <p class="error">@Model.Error</p>
-}
-<form method="post">
-    <label>Name <input name="user[name]" autocomplete="name" required /></label>
-    <label>Email <input name="user[email_address]" type="email" autocomplete="email" required /></label>
-    <label>Password <input name="user[password]" type="password" autocomplete="new-password" required /></label>
-    <button type="submit">Create the campfire</button>
-</form>
+<partial name="Shared/_SetupForm" model="setup" />

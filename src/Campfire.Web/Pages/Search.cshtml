@@ -2,15 +2,85 @@
 @model SearchModel
 @{
     ViewData["Title"] = "Search";
+    ViewData["BodyClass"] = "sidebar searches";
+    var recent = Model.Recent.Select(item => item.Query).Distinct().Take(8).ToList();
+    var back = Model.ReturnRoomId is long roomId ? $"/rooms/{roomId}" : "/";
 }
-<h1>Search</h1>
-<form method="get" action="/searches">
-    <label>Query <input name="q" value="@Model.Query" /></label>
-    <button type="submit">Search</button>
-</form>
-<ul>
-    @foreach (var message in Model.Results)
+@section Nav {
+    @if (!string.IsNullOrEmpty(Model.Query))
     {
-        <li><a href="/rooms/@message.RoomId">@message.PlainText</a></li>
+        <div class="searches__query flex align-center gap pad-block-start-half">
+            <div class="btn btn--reversed btn--faux align-center gap txt-nowrap">
+                <span class="overflow-ellipsis">“@Model.Query”</span>
+                <span class="flex-item-no-shrink">@Model.Results.Count</span>
+            </div>
+        </div>
     }
-</ul>
+    <div class="searches__recents align-center gap pad-block-half overflow-y overflow-hide-scrollbar">
+        @foreach (var query in recent)
+        {
+            <a class="align-center gap room btn txt-nowrap" href="/searches?q=@Uri.EscapeDataString(query)">
+                <span class="overflow-ellipsis">“@query”</span>
+            </a>
+        }
+    </div>
+}
+@section Sidebar {
+    <div class="rooms position-relative flex flex-column gap overflow-y overflow-hide-scrollbar">
+        @foreach (var query in recent)
+        {
+            <a class="align-center gap room btn txt-nowrap" href="/searches?q=@Uri.EscapeDataString(query)">
+                <span class="overflow-ellipsis">“@query”</span>
+            </a>
+        }
+        @if (recent.Count > 0)
+        {
+            <form method="post" action="/searches">
+                <button class="btn searches__btn" type="submit">
+                    <img src="/assets/images/broom.svg" alt="">
+                    <span class="for-screen-reader">Clear recent searches</span>
+                </button>
+            </form>
+        }
+    </div>
+}
+<div id="message-area" class="message-area">
+    <div class="message-area--empty min-width center">
+        <figure class="center pad">
+            <img src="/assets/images/search.svg" alt="" class="colorize--black translucent">
+        </figure>
+    </div>
+    <div class="messages searches__results">
+        @{
+            Message? previousMessage = null;
+        }
+        @foreach (var message in Model.Results)
+        {
+            var label = message.Room?.Name ?? "Room";
+            @Html.Raw(MessageMarkup.One(message, label, previousMessage, Model.CurrentUser?.Id ?? 0))
+            previousMessage = message;
+        }
+    </div>
+</div>
+@section Footer {
+    <div class="composer flex align-end gap">
+        <a class="btn flex-item-no-shrink margin-block-end" href="@back">
+            <img src="/assets/images/arrow-left.svg" alt="">
+            <span class="for-screen-reader">Exit search</span>
+        </a>
+        <form method="get" action="/searches" class="margin-block flex-item-grow contain flex align-center gap">
+            <div class="composer__input flex align-center flex-item-grow gap full-width input input--actor min-width">
+                <img src="/assets/images/search.svg" alt="" width="20" height="20" class="composer__input-hint colorize--black">
+                <input class="searches__input input flex-item-grow" type="text" name="q" value="@Model.Query" role="searchbox" aria-label="search" autofocus required>
+                <a class="searches__reset" href="/searches" role="button">
+                    <img src="/assets/images/remove.svg" alt="" width="14" height="14" class="colorize--black">
+                    <span class="for-screen-reader">Clear search field</span>
+                </a>
+                <button class="btn btn--reversed flex-item-no-shrink txt-small" type="submit">
+                    <img src="/assets/images/arrow-up.svg" alt="">
+                    <span class="for-screen-reader">Search</span>
+                </button>
+            </div>
+        </form>
+    </div>
+}

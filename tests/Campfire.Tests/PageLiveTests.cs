@@ -88,6 +88,14 @@ public sealed class PageLiveTests
             Assert.Contains("data-sidebar-room", sidebarHtml);
             Assert.Contains(clientScript, await ServedClientAsync(client, sidebarHtml));
 
+            using var seeded = new HttpRequestMessage(HttpMethod.Post, roomPath + "/messages")
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["body"] = "already on the page" }),
+            };
+            HttpFlow.Add(seeded, david);
+            using var seededResponse = await client.SendAsync(seeded);
+            Assert.Equal(HttpStatusCode.Redirect, seededResponse.StatusCode);
+
             var origin = client.BaseAddress!.GetLeftPart(UriPartial.Authority);
             await using var jasonRoom = await jasonBrowser.Open(origin, jason["session_token"], origin + roomPath);
             await jasonRoom.WaitFor("document.documentElement.dataset.campfireConnected === '1'");
@@ -107,7 +115,20 @@ public sealed class PageLiveTests
             Assert.Equal(HttpStatusCode.Redirect, posted.StatusCode);
 
             await jasonRoom.WaitFor("document.body.innerText.includes('live from the page')");
-            await jasonSidebar.WaitFor("document.querySelector('[data-sidebar-room] .unread') !== null");
+            await jasonRoom.WaitFor("""
+                (() => {
+                  function shape(text) {
+                    const node = [...document.querySelectorAll('.message')].find((item) => (item.innerText || '').includes(text));
+                    if (!node) return '';
+                    const names = ['message__day-separator','message__avatar','message__author','message__timestamp','message__body','message__body-content','boosts'];
+                    return names.every((name) => node.querySelector('.' + name)) ? names.join(' ') : 'missing';
+                  }
+                  const server = shape('already on the page');
+                  const live = shape('live from the page');
+                  return server !== '' && server !== 'missing' && server === live;
+                })()
+                """);
+            await jasonSidebar.WaitFor("document.querySelector('[data-sidebar-room].unread') !== null");
         }
         finally
         {

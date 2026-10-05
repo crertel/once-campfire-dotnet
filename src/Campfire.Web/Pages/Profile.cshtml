@@ -1,24 +1,92 @@
 @page "/users/me/profile"
 @model ProfileModel
+@using Campfire.Core
 @{
-    ViewData["Title"] = "Profile";
+    ViewData["Title"] = Model.CurrentUser?.Name ?? "Profile";
+    var user = Model.CurrentUser;
+    var shared = Model.Memberships.Where(membership => membership.Room.Kind != RoomKind.Direct).ToList();
+    var directs = Model.Memberships.Where(membership => membership.Room.Kind == RoomKind.Direct).ToList();
 }
-<h1>Profile</h1>
-<form method="post">
-    <label>Name <input name="name" value="@Model.CurrentUser?.Name" /></label>
-    <label>Email <input name="email_address" value="@Model.CurrentUser?.EmailAddress" /></label>
-    <label>Bio <textarea name="bio">@Model.CurrentUser?.Bio</textarea></label>
-    <label>New password <input name="password" type="password" /></label>
-    <button type="submit">Save</button>
-</form>
-<form method="post" action="/users/@Model.CurrentUser!.Id/avatar" enctype="multipart/form-data" asp-antiforgery="false">
-    <label>Avatar <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" /></label>
-    <button type="submit">Upload avatar</button>
-</form>
-@if (Model.CurrentUser?.Avatar is not null)
+@section Nav {
+    <div class="flex-item-justify-start">
+        <a class="btn" href="/">
+            <img src="/assets/images/arrow-left.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Go Back</span>
+        </a>
+    </div>
+    <div class="flex-item-justify-end">
+        <form method="post" action="/session/logout" asp-antiforgery="false">
+            <button class="btn" type="submit">
+                <img src="/assets/images/logout.svg" alt="">
+                <span class="for-screen-reader">Log out</span>
+            </button>
+        </form>
+    </div>
+}
+@if (user is not null)
 {
-    <img src="/users/@Model.CurrentUser.Id/avatar" alt="" />
+    <section class="panel flex flex-column gap">
+        <div class="align-center center avatar__form gap">
+            <form method="post" action="/users/@user.Id/avatar" enctype="multipart/form-data" asp-antiforgery="false">
+                <label class="btn avatar input--file txt-xx-large">
+                    <img src="@MessageMarkup.AvatarUrl(user)" alt="" width="300" height="300">
+                    <input id="avatar-file" class="input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp">
+                    <span class="for-screen-reader">Avatar</span>
+                </label>
+                <button class="for-screen-reader" type="submit">Upload avatar</button>
+            </form>
+        </div>
+        <form method="post">
+            <div class="flex flex-column gap">
+                <div class="flex align-center gap">
+                    @Html.Raw(Translations.Button("user_name"))
+                    <label class="flex align-center gap flex-item-grow input input--actor">
+                        <input class="input txt-large" name="name" value="@user.Name" autocomplete="name" placeholder="Enter your name" required>
+                        <img src="/assets/images/person.svg" alt="" width="24" height="24" class="colorize--black">
+                    </label>
+                </div>
+                <div class="flex align-center gap">
+                    @Html.Raw(Translations.Button("email_address"))
+                    <label class="flex align-center gap flex-item-grow input input--actor">
+                        <input class="input txt-large" type="email" name="email_address" value="@user.EmailAddress" autocomplete="username" placeholder="Enter your email address">
+                        <img src="/assets/images/email.svg" alt="" width="24" height="24" class="colorize--black">
+                    </label>
+                </div>
+                <div class="flex align-center gap">
+                    @Html.Raw(Translations.Button("update_password"))
+                    <label class="flex align-center gap flex-item-grow input input--actor">
+                        <input class="input txt-large" type="password" name="password" autocomplete="new-password" placeholder="Change password" maxlength="72">
+                        <img src="/assets/images/password.svg" alt="" width="24" height="24" class="colorize--black">
+                    </label>
+                </div>
+                <div class="flex align-start gap">
+                    @Html.Raw(Translations.Button("bio"))
+                    <label class="flex align-center gap flex-item-grow input input--actor">
+                        <textarea class="input txt-large" name="bio" placeholder="A few words about yourself…" maxlength="200" rows="3">@user.Bio</textarea>
+                        <img src="/assets/images/bio.svg" alt="" width="24" height="24" class="colorize--black">
+                    </label>
+                </div>
+                <button class="btn btn--reversed center txt-large" type="submit">
+                    <img src="/assets/images/check.svg" alt="">
+                    <span class="for-screen-reader">Save</span>
+                </button>
+            </div>
+        </form>
+        <div class="margin-block pad-inline pad-block fill-shade border-radius">
+            <menu class="flex flex-column gap margin-none pad">
+                @foreach (var membership in shared)
+                {
+                    <partial name="Shared/_Membership" model="membership" />
+                }
+                @if (directs.Count > 0 && shared.Count > 0)
+                {
+                    <hr class="separator full-width" style="--border-style: solid">
+                }
+                @foreach (var membership in directs)
+                {
+                    <partial name="Shared/_Membership" model="membership" />
+                }
+            </menu>
+        </div>
+    </section>
 }
-<form method="post" action="/session/logout" asp-antiforgery="false">
-    <button type="submit">Sign out</button>
-</form>

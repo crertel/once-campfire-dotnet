@@ -1,0 +1,35 @@
+@model InviteForm
+<div class="flex flex-column align-center gap">
+    <label class="flex flex-column gap full-width" style="--row-gap: 0.5em">
+        <strong id="invite_label" class="invite-label">Share to invite more people</strong>
+        <span class="for-screen-reader" id="join-code">@Model.Code</span>
+        <span class="flex align-center gap input input--actor fill-white">
+            <img src="/assets/images/person-add.svg" alt="" width="20" height="20" class="colorize--black">
+            <input type="text" class="input" id="invite_url" value="@Model.Url" aria-labelledby="invite_label" readonly>
+        </span>
+    </label>
+    <div class="flex align-center gap">
+        <span class="btn">
+            <img src="/assets/images/qr-code.svg" alt="" width="20" height="20" class="colorize--black">
+            <span class="for-screen-reader">Show join link QR code</span>
+        </span>
+        <span class="btn">
+            <img src="/assets/images/copy-paste.svg" alt="" width="20" height="20" class="colorize--black">
+            <span class="for-screen-reader">Copy join link</span>
+        </span>
+        <span class="btn">
+            <img src="/assets/images/share.svg" alt="" width="20" height="20" class="colorize--black">
+            <span class="for-screen-reader">Share join link</span>
+        </span>
+        @if (Model.Administrator)
+        {
+            <form method="post" action="/account">
+                <input type="hidden" name="reset_join_code" value="1">
+                <button class="btn btn--regenerate" type="submit">
+                    <img src="/assets/images/refresh.svg" alt="" width="20" height="20" class="colorize--black">
+                    <span class="for-screen-reader">Regenerate join link</span>
+                </button>
+            </form>
+        }
+    </div>
+</div>

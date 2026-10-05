@@ -2,12 +2,45 @@
 @model SessionNewModel
 @{
     ViewData["Title"] = "Sign in";
+    ViewData["Csrf"] = Model.Csrf;
 }
-<h1>Sign in</h1>
-<meta name="csrf-token" content="@Model.Csrf" />
-<form method="post" action="/session" asp-antiforgery="false">
-    <input type="hidden" name="authenticity_token" value="@Model.Csrf" />
-    <label>Email <input name="email_address" type="email" autocomplete="username" required /></label>
-    <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
-    <button type="submit">Sign in</button>
-</form>
+<section class="txt-align-center">
+    <div class="panel">
+        <figure class="account-logo avatar center margin-block-end txt-xx-large">
+            <img src="/assets/images/campfire-icon.png" alt="Account logo" width="300" height="300">
+        </figure>
+        <form method="post" action="/session" class="flex flex-column gap" asp-antiforgery="false">
+            <input type="hidden" name="authenticity_token" value="@Model.Csrf">
+            <fieldset class="flex flex-column gap center-block upad">
+                <legend class="txt-large txt-align-center"><strong>@Model.Account?.Name</strong></legend>
+                <div class="flex align-center gap">
+                    @Html.Raw(Translations.Button("email_address"))
+                    <label class="flex align-center gap input input--actor txt-large">
+                        <input class="input" type="email" name="email_address" required autofocus autocomplete="username" placeholder="Enter your email address">
+                        <img src="/assets/images/email.svg" alt="" width="24" height="24" class="colorize--black">
+                    </label>
+                </div>
+                <div class="flex align-center gap">
+                    @Html.Raw(Translations.Button("password"))
+                    <label class="flex align-center gap input input--actor txt-large">
+                        <input class="input" type="password" name="password" required autocomplete="current-password" placeholder="Enter your password" maxlength="72">
+                        <img src="/assets/images/password.svg" alt="" width="24" height="24" class="colorize--black">
+                    </label>
+                </div>
+                <button class="btn btn--reversed center txt-large" type="submit" name="log_in">
+                    <img src="/assets/images/arrow-right.svg" alt="">
+                    <span class="for-screen-reader">Go</span>
+                </button>
+            </fieldset>
+        </form>
+    </div>
+    @if (Model.Owner?.EmailAddress is not null)
+    {
+        <div class="txt-align-center margin-block-double full-width">
+            <a class="btn center" href="mailto:@Model.Owner.EmailAddress" title="Email @Model.Owner.Name">
+                <img src="/assets/images/lifebuoy.svg" alt="">
+                <span>@Model.Owner.EmailAddress</span>
+            </a>
+        </div>
+    }
+</section>

@@ -1,26 +1,118 @@
 @page "/rooms/{id:long}"
 @model RoomModel
+@using Campfire.Core
 @{
     ViewData["Title"] = Model.Title;
+    ViewData["BodyClass"] = "sidebar";
+    var account = HttpContext.Items["Account"] as Account;
+    var user = Model.CurrentUser;
+    InviteForm? invite = null;
+    if (Model.ShowWelcome && account is not null && user is not null)
+        invite = new InviteForm(account.JoinCode, $"{Request.Scheme}://{Request.Host}/join/{account.JoinCode}", user.IsAdministrator);
 }
-<h1>@Model.Title</h1>
-<div id="messages" data-live data-room-id="@Model.RoomId">
-    @foreach (var message in Model.Messages)
-    {
-        <article class="message" id="message-@message.Id">
-            <p class="author">@message.Creator.Name</p>
-            <div class="body">@Html.Raw(message.Html)</div>
-            @foreach (var boost in message.Boosts.OrderBy(item => item.CreatedAt))
+@section Head {
+    <meta name="current-room-id" content="@Model.RoomId">
+}
+@section Nav {
+    <span class="btn btn--reversed btn--faux room--current">
+        <h1 class="room__contents txt-medium overflow-ellipsis">
+            @if (Model.Room?.Kind == RoomKind.Direct)
             {
-                <span class="boost">@boost.Content</span>
+                <span class="for-screen-reader">Ping with</span>
             }
-        </article>
-    }
+            @Model.Title
+        </h1>
+    </span>
+    <a class="btn" href="/rooms/@Model.RoomId">
+        <img src="/assets/images/menu-dots-horizontal.svg" alt="" width="20" height="20">
+        <span class="for-screen-reader">Settings for this @(Model.Room?.Kind == RoomKind.Direct ? "Ping" : "room")</span>
+    </a>
+    <button class="btn" type="button">
+        <img src="/assets/images/notification-bell-mentions.svg" alt="" width="20" height="20">
+        <span class="for-screen-reader">Notification settings for this @(Model.Room?.Kind == RoomKind.Direct ? "Ping" : "room")</span>
+    </button>
+}
+@section Sidebar {
+    <partial name="Shared/_Sidebar" model="Model.Memberships" />
+}
+<div id="message-area" class="message-area" contents>
+    <div class="message-area--empty min-width center">
+        <figure class="center pad">
+            <img src="/assets/images/messages-empty.svg" alt="" class="colorize--black translucent">
+        </figure>
+    </div>
+    <div id="messages" class="messages" data-live data-room-id="@Model.RoomId">
+        @if (invite is not null)
+        {
+            <div id="system_welcome" class="message message--formatted txt-align-center center">
+                <div class="message__body center">
+                    <div class="message__body-content position-relative">
+                        <figure class="account-logo avatar center margin-block-end txt-large">
+                            <img src="/assets/images/campfire-icon.png" alt="Account logo" width="48" height="48">
+                        </figure>
+                        <div class="flex align-center gap">
+                            <div class="system-welcome--translation">
+                                @Html.Raw(Translations.Button("invite_message"))
+                            </div>
+                            <p><strong>Welcome to Campfire</strong><br>To invite people to chat, share the join link below.</p>
+                        </div>
+                        <partial name="Shared/_Invite" model="invite" />
+                    </div>
+                </div>
+            </div>
+        }
+        @{
+            Message? previousMessage = null;
+        }
+        @foreach (var message in Model.Messages)
+        {
+            @Html.Raw(MessageMarkup.One(message, Model.Title, previousMessage, user?.Id ?? 0))
+            previousMessage = message;
+        }
+        <div id="presence" data-presence class="for-screen-reader">
+            @if (Model.Room is not null)
+            {
+                foreach (var member in Model.Room.Memberships.Where(item => item.Connections > 0))
+                {
+                    <span class="present" data-user-id="@member.UserId"></span>
+                }
+            }
+        </div>
+        <div class="for-screen-reader">
+            <component type="typeof(RoomLive)" render-mode="Static" param-RoomId="@Model.RoomId" />
+        </div>
+    </div>
 </div>
-<form method="post">
-    <label for="composer">Message</label>
-    <textarea id="composer" name="body">@Model.Draft</textarea>
-    <button type="submit">Send</button>
-</form>
-<div id="presence" data-presence></div>
-<component type="typeof(RoomLive)" render-mode="Static" param-RoomId="@Model.RoomId" />
+@section Footer {
+    <div class="composer flex align-end gap position-relative">
+        <a class="btn flex-item-no-shrink margin-block-end composer__context-btn" href="/searches">
+            <img src="/assets/images/search.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Search</span>
+        </a>
+        <form method="post" id="composer-frame">
+            <input type="hidden" name="client_message_id" value="">
+            <div class="composer__filelist flex flex--align-center gap flex-wrap"></div>
+            <div class="flex composer__input input input--actor fill-white min-width" style="--input-border-radius: 1.3rem">
+                <div class="flex align-end gap full-width">
+                    <img src="/assets/images/messages-outlined.svg" alt="" width="22" height="22" class="composer__input-hint colorize--black">
+                    <div class="flex flex-column flex-item-grow min-width gap">
+                        <textarea id="composer" name="body" rows="1" class="input lexxy-content" aria-label="Write a message">@Model.Draft</textarea>
+                    </div>
+                    <label class="btn btn--borderless txt-small flex-item-no-shrink composer__attachment-btn input--file">
+                        <img src="/assets/images/attachment.svg" alt="" width="22" height="22" class="colorize--black">
+                        <input type="file" multiple>
+                        <span class="for-screen-reader">Attach a file</span>
+                    </label>
+                    <button class="btn btn--borderless txt-small flex-item-no-shrink composer__rich-text-btn" type="button">
+                        <img src="/assets/images/text-options.svg" alt="" width="20" height="20" class="colorize--black">
+                        <span class="for-screen-reader">Rich text</span>
+                    </button>
+                    <button class="btn btn--reversed flex-item-no-shrink txt-small" type="submit" name="send">
+                        <img src="/assets/images/arrow-up.svg" alt="" width="20" height="20">
+                        <span class="for-screen-reader">Send Message</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+}

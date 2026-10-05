@@ -419,7 +419,7 @@ public sealed class CampfireApp
                 page = [];
             else
             {
-                page = await BeforeQuery(roomId, cursor).Include(message => message.Creator).Include(message => message.Boosts).ToListAsync(cancellationToken);
+                page = await BeforeQuery(roomId, cursor).Include(message => message.Creator).Include(message => message.Boosts).ThenInclude(boost => boost.Booster).ToListAsync(cancellationToken);
                 page.Reverse();
             }
         }
@@ -433,12 +433,12 @@ public sealed class CampfireApp
                     .OrderBy(message => message.CreatedAt).ThenBy(message => message.Id)
                     .Take(PageSize)
                     .Include(message => message.Creator)
-                    .Include(message => message.Boosts)
+                    .Include(message => message.Boosts).ThenInclude(boost => boost.Booster)
                     .ToListAsync(cancellationToken);
         }
         else
         {
-            page = await LastPageQuery(roomId).Include(message => message.Creator).Include(message => message.Boosts).ToListAsync(cancellationToken);
+            page = await LastPageQuery(roomId).Include(message => message.Creator).Include(message => message.Boosts).ThenInclude(boost => boost.Booster).ToListAsync(cancellationToken);
             page.Reverse();
         }
 
@@ -721,7 +721,7 @@ public sealed class CampfireApp
 
     public async Task<IReadOnlyList<Membership>> SidebarAsync(long userId, CancellationToken cancellationToken = default) =>
         await _db.Memberships.Where(membership => membership.UserId == userId)
-            .Include(membership => membership.Room)
+            .Include(membership => membership.Room).ThenInclude(room => room.Memberships).ThenInclude(membership => membership.User)
             .OrderBy(membership => membership.Room.Name)
             .ToListAsync(cancellationToken);
 
@@ -818,6 +818,12 @@ public sealed class CampfireApp
         Creator = creator.Name,
         Html = message.Html,
         Text = message.PlainText,
+        CreatedAt = new DateTimeOffset(message.CreatedAt.Kind switch
+        {
+            DateTimeKind.Local => message.CreatedAt.ToUniversalTime(),
+            DateTimeKind.Utc => message.CreatedAt,
+            _ => DateTime.SpecifyKind(message.CreatedAt, DateTimeKind.Utc),
+        }),
     };
 
     private async Task ReindexAsync(Message message, CancellationToken cancellationToken)

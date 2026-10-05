@@ -1,39 +1,21 @@
-@page "/join/{code}"
-@model JoinModel
-@{
-    ViewData["Title"] = "Sign up";
-    ViewData["BodyClass"] = "signup";
-    ViewData["Alert"] = Model.Error;
-}
-@section Nav {
-    <div class="flex-item-justify-end">
-        <a class="btn flex-item-justify-end" href="/session/new">
-            <img src="/assets/images/login-keys.svg" alt="">
-            <span class="for-screen-reader">Sign in</span>
-        </a>
-    </div>
-}
-<form method="post" class="center">
+@model SetupForm
+<form method="post" action="@Model.Action" class="center max-width" asp-antiforgery="false">
+    <input type="hidden" name="authenticity_token" value="@Model.Csrf">
     <section class="nametag u-relative">
         <div class="flex justify-center align-center pad-block">
             <img src="/assets/images/lanyard.svg" class="nametag__lanyard" alt="">
         </div>
         <div class="nametag__inner flex flex-column gap">
             <fieldset class="flex flex-column center-block">
-                <legend class="txt-align-center flex gap">
-                    <figure class="account-logo avatar">
-                        <img src="/assets/images/campfire-icon.png" alt="Account logo" width="48" height="48">
-                    </figure>
-                    <strong class="txt-large">@Model.AccountName</strong>
-                </legend>
+                <legend class="txt-large txt-align-center"><strong>Set up Campfire</strong></legend>
                 <label class="align-center center avatar__form gap">
                     <div class="btn input--file">
                         <img src="/assets/images/camera.svg" alt="">
-                        <input class="input" type="file" accept="image/*">
-                        <span class="for-screen-reader">Upload avatar</span>
+                        <input class="input" type="file" name="user[avatar]" accept="image/*">
+                        <span class="for-screen-reader">Add your avatar</span>
                     </div>
                     <div class="btn avatar input--file txt-xx-large">
-                        <img src="/assets/images/default-avatar.svg" alt="">
+                        <img src="/assets/images/default-avatar.svg" alt="Add your avatar">
                         <span class="for-screen-reader">Avatar</span>
                     </div>
                 </label>
@@ -41,37 +23,28 @@
             <div class="flex align-center gap">
                 @Html.Raw(Translations.Button("user_name"))
                 <label class="flex align-center gap flex-item-grow txt-large input input--actor">
-                    <input class="input" name="name" autocomplete="name" placeholder="Name" autofocus required>
+                    <input class="input" name="user[name]" autocomplete="name" placeholder="Name" autofocus required>
                     <img src="/assets/images/person.svg" alt="" width="24" height="24" class="colorize--black">
                 </label>
             </div>
             <div class="flex align-center gap">
                 @Html.Raw(Translations.Button("email_address"))
                 <label class="flex align-center gap flex-item-grow txt-large input input--actor">
-                    <input class="input" type="email" name="email_address" autocomplete="username" placeholder="Email address" required>
+                    <input class="input" type="email" name="user[email_address]" autocomplete="username" placeholder="Email address" required>
                     <img src="/assets/images/email.svg" alt="" width="24" height="24" class="colorize--black">
                 </label>
             </div>
             <div class="flex align-center gap">
                 @Html.Raw(Translations.Button("password"))
                 <label class="flex align-center gap flex-item-grow txt-large input input--actor">
-                    <input class="input" type="password" name="password" autocomplete="new-password" placeholder="Password" required maxlength="72">
+                    <input class="input" type="password" name="user[password]" autocomplete="new-password" placeholder="Password" required maxlength="72">
                     <img src="/assets/images/password.svg" alt="" width="24" height="24" class="colorize--black">
                 </label>
             </div>
             <button class="btn btn--reversed center txt-large" type="submit">
-                <img src="/assets/images/check.svg" alt="">
+                <img src="/assets/images/arrow-right.svg" alt="">
                 <span class="for-screen-reader">Save</span>
             </button>
         </div>
     </section>
 </form>
-@if (Model.Owner?.EmailAddress is not null)
-{
-    <div class="txt-align-center margin-block-double full-width">
-        <a class="btn center" href="mailto:@Model.Owner.EmailAddress" title="Email @Model.Owner.Name">
-            <img src="/assets/images/lifebuoy.svg" alt="">
-            <span>@Model.Owner.EmailAddress</span>
-        </a>
-    </div>
-}

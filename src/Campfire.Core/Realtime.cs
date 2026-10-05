@@ -8,6 +8,7 @@ public sealed class LiveMessage
     public string Creator { get; set; } = "";
     public string Html { get; set; } = "";
     public string Text { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class LiveRemoval

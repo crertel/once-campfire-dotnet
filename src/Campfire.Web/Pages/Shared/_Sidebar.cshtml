@@ -1,0 +1,67 @@
+@using Campfire.Core
+@model IReadOnlyList<Membership>
+@{
+    var user = Context.Items["User"] as User;
+    var account = Context.Items["Account"] as Account;
+    var userId = user?.Id ?? 0;
+    var directs = Model.Where(membership => membership.Room.Kind == RoomKind.Direct).ToList();
+    var shared = Model.Where(membership => membership.Room.Kind != RoomKind.Direct).ToList();
+    var canCreate = user?.IsAdministrator == true || account?.RestrictRoomCreationToAdministrators != true;
+}
+<div class="sidebar__container overflow-y overflow-hide-scrollbar" data-live>
+    <div class="directs gap overflow-x overflow-hide-scrollbar">
+        <button class="direct direct__new" type="button">
+            <span class="avatar avatar--icon">
+                <img src="/assets/images/messages-add.svg" alt="" width="20" height="20" class="colorize--black">
+            </span>
+            <span class="direct__author flex max-width min-width border-radius pad-inline-half">
+                <span class="for-screen-reader">New</span>
+                <span class="txt-small overflow-clip">Ping</span>
+            </span>
+        </button>
+        @foreach (var membership in directs)
+        {
+            var label = MessageMarkup.RoomLabel(membership.Room, userId);
+            var other = membership.Room.Memberships.FirstOrDefault(item => item.UserId != userId)?.User;
+            <a class="direct@(membership.Unread ? " unread" : "")" data-sidebar-room="@membership.RoomId" href="/rooms/@membership.RoomId">
+                <span class="avatar">
+                    <img src="@MessageMarkup.AvatarUrl(other)" alt="" width="48" height="48">
+                </span>
+                <span class="direct__author flex align-center gap max-width min-width border-radius txt-small">
+                    <span class="txt-nowrap overflow-ellipsis">
+                        <span class="for-screen-reader">Ping with</span>
+                        @label
+                    </span>
+                </span>
+            </a>
+        }
+    </div>
+    <div class="rooms position-relative flex flex-column gap">
+        @foreach (var membership in shared)
+        {
+            <a id="room_@(membership.RoomId)_list" data-sidebar-room="@membership.RoomId" class="align-center gap room btn txt-nowrap@(membership.Unread ? " unread" : "")" href="/rooms/@membership.RoomId">
+                <span class="overflow-ellipsis">@membership.Room.Name</span>
+            </a>
+        }
+        @if (canCreate)
+        {
+            <button class="rooms__new-btn btn room align-center gap txt-reversed" type="button" aria-label="New Chat Room">
+                <img src="/assets/images/add.svg" alt="" width="20" height="20">
+            </button>
+        }
+    </div>
+    <button class="btn sidebar__toggle" type="button">
+        <img src="/assets/images/menu.svg" alt="" width="20" height="20">
+        <span class="for-screen-reader">Open menu</span>
+    </button>
+</div>
+<div class="flex align-end sidebar__tools gap justify-end">
+    <a class="btn avatar flex-item-no-shrink sidebar__tool" href="/users/me/profile">
+        <img src="@MessageMarkup.AvatarUrl(user)" alt="" width="48" height="48">
+        <span class="for-screen-reader">My Settings</span>
+    </a>
+    <a class="btn align-center gap txt-reversed sidebar__tool" href="/account">
+        <img src="/assets/images/settings.svg" alt="" width="20" height="20">
+        <span class="for-screen-reader">Account Settings</span>
+    </a>
+</div>

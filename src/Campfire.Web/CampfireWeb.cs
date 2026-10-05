@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.FileProviders;
 
 namespace Campfire.Web;
 
@@ -70,8 +71,19 @@ public static class CampfireWeb
         });
         app.UseMiddleware<BrowserMiddleware>();
         app.UseStaticFiles();
+        var images = RailsAssets.ImageRoot();
+        if (images is not null)
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(images),
+                RequestPath = "/assets/images",
+            });
+        }
+
         app.UseMiddleware<SessionMiddleware>();
         app.UseAntiforgery();
+        app.MapGet("/assets/application.css", () => Results.Text(RailsAssets.Stylesheet(), "text/css; charset=utf-8"));
         app.MapRazorPages();
         app.MapRazorComponents<Components.App>().AddInteractiveServerRenderMode();
         app.MapHub<CampfireHub>("/hubs/campfire");
@@ -167,7 +179,7 @@ public static class CampfireWeb
         var page = await campfire.MessagesPageAsync(id, before, after);
         if (!page.RoomHasMessages)
             return Results.NoContent();
-        return Results.Content(Fragments.Messages(page.Messages), "text/html; charset=utf-8");
+        return Results.Content(Fragments.Messages(page.Messages, user.Id), "text/html; charset=utf-8");
     }
 
     private static async Task<IResult> CreateMessageAsync(long id, HttpContext http, CampfireApp campfire)
@@ -348,18 +360,16 @@ public sealed class SqliteSetup : DbConnectionInterceptor
 
 public static class Fragments
 {
-    public static string Messages(IEnumerable<Message> messages)
+    public static string Messages(IEnumerable<Message> messages, long viewerId)
     {
         var builder = new System.Text.StringBuilder();
+        Message? previous = null;
         foreach (var message in messages)
         {
-            builder.Append("<article class=\"message\" id=\"message-").Append(message.Id).Append("\">");
-            builder.Append("<p class=\"author\">").Append(WebUtility.HtmlEncode(message.Creator?.Name ?? "")).Append("</p>");
-            builder.Append("<div class=\"body\">").Append(message.Html).Append("</div>");
-            foreach (var boost in message.Boosts.OrderBy(item => item.CreatedAt))
-                builder.Append("<span class=\"boost\">").Append(WebUtility.HtmlEncode(boost.Content)).Append("</span>");
-            builder.Append("</article>");
+            builder.Append(MessageMarkup.One(message, message.Room?.Name ?? "", previous, viewerId));
+            previous = message;
         }
+
         return builder.ToString();
     }
 }
@@ -372,11 +382,7 @@ public sealed class BrowserMiddleware(RequestDelegate next)
         {
             context.Response.StatusCode = StatusCodes.Status406NotAcceptable;
             context.Response.ContentType = "text/html; charset=utf-8";
-            await context.Response.WriteAsync("""
-                <!DOCTYPE html>
-                <html><head><title>Upgrade your browser</title></head>
-                <body><h1>Upgrade to a supported web browser</h1></body></html>
-                """);
+            await context.Response.WriteAsync(UnsupportedBrowserPage.Html);
             return;
         }
 
