@@ -1,5 +1,11 @@
 ## Self-hosting Campfire
 
+`docker build -t campfire .` in this checkout produces the ASP.NET Core server. Thruster 0.1.23 sits in front of it, the same way it sits in front of Puma in the Rails image, so the commands below are the same: volume at `/rails/storage`, ports 80 and 443, `SECRET_KEY_BASE`, the VAPID keys, `TLS_DOMAIN` or `DISABLE_SSL=true`, and `script/admin/generate-secrets` / `script/admin/prepare-backup`.
+
+The database file is still `storage/db/production.sqlite3`. On an empty volume the server creates its own schema there. A database that already has the Rails tables is left unchanged and is not served. This image does not start Redis.
+
+`ghcr.io/basecamp/once-campfire` in the examples below is the upstream Rails image. For this checkout, use the tag you built (`campfire`) in that position.
+
 Campfire's Docker image contains everything needed for a fully-functional, single-machine deployment.
 This includes the web app, background jobs, caching, file serving, and SSL.
 
@@ -167,7 +173,7 @@ All of Campfire's state lives in the mounted volume, so upgrading is a matter of
 docker pull ghcr.io/basecamp/once-campfire:latest
 ```
 
-Any pending database migrations run automatically when the container boots.
+On an empty volume the server creates its schema when the container boots. An existing database is opened as-is.
 
 ### Backups
 

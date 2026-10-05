@@ -53,3 +53,12 @@
 
 # Agent session state — worktrees under .claude/ are whole extra checkouts of this repo
 .claude
+
+# The ASP.NET image builds from src/ and app/assets. Leave host build output out of the context.
+tests/
+bench/
+tmp/
+log/
+result
+**/bin/
+**/obj/

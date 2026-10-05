@@ -20,12 +20,16 @@ public sealed class AppSecrets
 
     public string? VapidPrivateKey { get; }
 
-    public static AppSecrets Load(string directory)
+    public static AppSecrets Load(string directory, Func<string, string?>? environment = null)
     {
+        environment ??= static name => Environment.GetEnvironmentVariable(name);
         Directory.CreateDirectory(directory);
         var transferPath = Path.Combine(directory, "transfer.key");
         byte[] transfer;
-        if (File.Exists(transferPath))
+        var secret = environment("SECRET_KEY_BASE");
+        if (!string.IsNullOrWhiteSpace(secret))
+            transfer = SHA256.HashData(Encoding.UTF8.GetBytes(secret));
+        else if (File.Exists(transferPath))
             transfer = File.ReadAllBytes(transferPath);
         else
         {
@@ -33,8 +37,8 @@ public sealed class AppSecrets
             File.WriteAllBytes(transferPath, transfer);
         }
 
-        var configuredPublic = Environment.GetEnvironmentVariable("VAPID_PUBLIC_KEY");
-        var configuredPrivate = Environment.GetEnvironmentVariable("VAPID_PRIVATE_KEY");
+        var configuredPublic = environment("VAPID_PUBLIC_KEY");
+        var configuredPrivate = environment("VAPID_PRIVATE_KEY");
         if (!string.IsNullOrWhiteSpace(configuredPublic) && !string.IsNullOrWhiteSpace(configuredPrivate))
             return new AppSecrets(transfer, configuredPublic.Trim(), configuredPrivate.Trim());
 

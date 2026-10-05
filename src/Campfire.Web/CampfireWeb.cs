@@ -25,10 +25,7 @@ public static partial class CampfireWeb
         services.AddDbContext<CampfireDb>((serviceProvider, options) =>
         {
             var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-            var selected = configuration["Campfire:Database"]
-                ?? Environment.GetEnvironmentVariable("CAMPFIRE_DB")
-                ?? Path.Combine("storage", "db", "campfire.sqlite");
-            var full = Path.GetFullPath(selected);
+            var full = CampfireStorage.DatabasePath(configuration);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             options.UseSqlite($"Data Source={full}");
             options.AddInterceptors(serviceProvider.GetRequiredService<SqliteSetup>());
@@ -36,10 +33,8 @@ public static partial class CampfireWeb
         services.AddSingleton(static serviceProvider =>
         {
             var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-            var selected = configuration["Campfire:Database"]
-                ?? Environment.GetEnvironmentVariable("CAMPFIRE_DB")
-                ?? Path.Combine("storage", "db", "campfire.sqlite");
-            var databaseDirectory = Path.GetDirectoryName(Path.GetFullPath(selected)) ?? Path.GetFullPath("storage");
+            var full = CampfireStorage.DatabasePath(configuration);
+            var databaseDirectory = Path.GetDirectoryName(full) ?? Path.GetFullPath("storage");
             return new FileCabinet(Path.GetFullPath(Path.Combine(databaseDirectory, "..", "files")));
         });
         services.AddSingleton(static serviceProvider => AppSecrets.Load(Path.GetFullPath(Path.Combine(serviceProvider.GetRequiredService<FileCabinet>().Root, ".."))));
@@ -57,7 +52,9 @@ public static partial class CampfireWeb
             options.Cookie.Name = "authenticity_token";
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.Cookie.SecurePolicy = CampfireStorage.SecureCookies()
+                ? CookieSecurePolicy.Always
+                : CookieSecurePolicy.SameAsRequest;
         });
         var assembly = typeof(CampfireWeb).Assembly;
         services.AddRazorPages(options =>
@@ -71,7 +68,8 @@ public static partial class CampfireWeb
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<CampfireDb>();
-            db.EnsureReadyAsync().GetAwaiter().GetResult();
+            if (db.EnsureReadyAsync().GetAwaiter().GetResult())
+                Console.Error.WriteLine("campfire: database has the Rails schema and was left unchanged");
         }
 
         if (app.Environment.IsDevelopment())
@@ -121,6 +119,19 @@ public static partial class CampfireWeb
             });
         }
 
+        // The shootout harness and Thruster treat GET /up as ready. Session setup
+        // reads Accounts, which a mounted Rails database does not have.
+        app.Use(async (context, next) =>
+        {
+            if (!HttpMethods.IsGet(context.Request.Method) || context.Request.Path != "/up")
+            {
+                await next();
+                return;
+            }
+
+            context.Response.ContentType = "text/plain; charset=utf-8";
+            await context.Response.WriteAsync("ok");
+        });
         app.UseMiddleware<SessionMiddleware>();
         app.UseAntiforgery();
         app.MapGet("/assets/application.css", () => Results.Text(RailsAssets.Stylesheet(), "text/css; charset=utf-8"));
@@ -142,8 +153,6 @@ public static partial class CampfireWeb
 
     private static void MapApi(WebApplication app)
     {
-        app.MapGet("/up", () => Results.Text("ok"));
-
         app.MapPost("/session", LoginAsync).DisableAntiforgery();
         app.MapPost("/session/logout", LogoutAsync).DisableAntiforgery();
         app.MapDelete("/session", LogoutAsync).DisableAntiforgery();
@@ -248,13 +257,26 @@ public static partial class CampfireWeb
         if (user is null)
             return Results.Unauthorized();
         var form = await http.Request.ReadFormAsync();
-        var body = form["body"].ToString();
+        var body = FormValue(form, "body", "message[body]");
         if (!string.IsNullOrEmpty(form["unfurl_html"]))
             body += form["unfurl_html"].ToString();
-        var clientId = form["client_message_id"].ToString();
+        var clientId = FormValue(form, "client_message_id", "message[client_message_id]");
         var file = await ReadFileAsync(form);
-        var message = await campfire.CreateMessageAsync(user.Id, id, body, string.IsNullOrEmpty(clientId) ? null : clientId, file, true);
+        await campfire.CreateMessageAsync(user.Id, id, body, string.IsNullOrEmpty(clientId) ? null : clientId, file, true);
+        if (http.Request.Headers.Accept.Any(value => value?.Contains("text/vnd.turbo-stream.html", StringComparison.Ordinal) == true))
+            return Results.Text("<turbo-stream action=\"append\" target=\"messages\"></turbo-stream>", "text/vnd.turbo-stream.html");
         return Results.Redirect($"/rooms/{id}");
+    }
+
+    private static string FormValue(IFormCollection form, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = form[name].ToString();
+            if (!string.IsNullOrEmpty(value))
+                return value;
+        }
+        return "";
     }
 
     private static async Task<IResult> UpdateMessageAsync(long id, long messageId, HttpContext http, CampfireApp campfire)

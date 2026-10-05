@@ -1,13 +1,29 @@
+using System.Security.Cryptography;
 using Campfire.Core;
 using Campfire.Web;
 
-if (args.Length > 0 && args[0] is "seed" or "hot-paths")
+if (args.Length > 0 && args[0] is "seed" or "hot-paths" or "secrets" or "backup")
 {
     Environment.ExitCode = await CampfireCli.RunAsync(args);
     return;
 }
 
+var logLevel = CampfireStorage.RailsLogLevel();
+if (logLevel is not null)
+    Environment.SetEnvironmentVariable("Logging__LogLevel__Default", logLevel);
+
+// The ASP.NET container image defaults to port 8080. Thruster owns HTTP_PORT and
+// tells this process the upstream port through PORT.
+var listen = CampfireStorage.ListenUrl();
+if (listen is not null)
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTP_PORTS", null);
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
+}
+
 var builder = WebApplication.CreateBuilder(args);
+if (listen is not null)
+    builder.WebHost.UseUrls(listen);
 var app = CampfireWeb.Build(builder);
 app.Run();
 
@@ -34,6 +50,25 @@ public static class CampfireCli
                 var json = await HotPaths.MeasureAsync(database, cancellationToken);
                 await File.WriteAllTextAsync(output, json, cancellationToken);
                 Console.WriteLine(output);
+                return 0;
+            }
+
+            if (args[0] == "secrets")
+            {
+                var (publicKey, privateKey) = WebPush.GenerateVapid();
+                var secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(64)).ToLowerInvariant();
+                Console.WriteLine($"SECRET_KEY_BASE={secret}");
+                Console.WriteLine($"VAPID_PRIVATE_KEY={privateKey}");
+                Console.WriteLine($"VAPID_PUBLIC_KEY={publicKey}");
+                return 0;
+            }
+
+            if (args[0] == "backup")
+            {
+                var database = CampfireStorage.DatabasePath();
+                var destination = CampfireStorage.BackupPath();
+                DatabaseBackup.Create(database, destination);
+                Console.WriteLine(destination);
                 return 0;
             }
         }

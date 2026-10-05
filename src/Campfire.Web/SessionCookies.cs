@@ -11,13 +11,13 @@ public static class SessionCookies
         MaxAge = TimeSpan.FromDays(3650),
         Path = "/",
         SameSite = SameSiteMode.Lax,
-        Secure = false,
+        Secure = CampfireStorage.SecureCookies(),
     };
 
     public static CookieOptions Delete { get; } = new()
     {
         Path = "/",
         SameSite = SameSiteMode.Lax,
-        Secure = false,
+        Secure = CampfireStorage.SecureCookies(),
     };
 }

@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Campfire.Core;
@@ -67,9 +68,13 @@ public sealed class CampfireDb : DbContext
             .OnDelete(DeleteBehavior.Cascade);
     }
 
-    public async Task EnsureReadyAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> EnsureReadyAsync(CancellationToken cancellationToken = default)
     {
         await Database.EnsureCreatedAsync(cancellationToken);
+        // A mounted Rails database (the shootout seed, a restored upstream volume) already has
+        // tables. Leave it alone instead of adding this app's tables beside it.
+        if (await HasRailsSchemaAsync(cancellationToken))
+            return true;
         await Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS "Attachments" (
@@ -86,5 +91,20 @@ public sealed class CampfireDb : DbContext
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_Attachments_MessageId" ON "Attachments" ("MessageId");
             """,
             cancellationToken);
+        return false;
+    }
+
+    private async Task<bool> HasRailsSchemaAsync(CancellationToken cancellationToken)
+    {
+        var connection = Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'Users')";
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            names.Add(reader.GetString(0));
+        return names.Contains("users") && !names.Contains("Users");
     }
 }
