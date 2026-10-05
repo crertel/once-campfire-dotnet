@@ -30,10 +30,82 @@ public sealed class HttpTests
         Assert.Contains("user[name]", html);
         Assert.Contains("user[email_address]", html);
         Assert.Contains("user[password]", html);
+        Assert.Contains("name=\"authenticity_token\"", html);
 
         using var signIn = await client.GetAsync("/session/new");
         Assert.Equal(HttpStatusCode.Redirect, signIn.StatusCode);
         Assert.Contains("/first_run", signIn.Headers.Location?.OriginalString);
+
+        var cookies = new Dictionary<string, string>();
+        HttpFlow.Collect(home, cookies);
+        var fields = FormFields(html);
+        fields["user[name]"] = "David";
+        fields["user[email_address]"] = "david@37signals.com";
+        fields["user[password]"] = "secret123456";
+        using var created = new HttpRequestMessage(HttpMethod.Post, FormAction(html))
+        {
+            Content = new FormUrlEncodedContent(fields),
+        };
+        HttpFlow.Add(created, cookies);
+        using var started = await client.SendAsync(created);
+        Assert.Equal(HttpStatusCode.Redirect, started.StatusCode);
+        HttpFlow.Collect(started, cookies);
+        Assert.False(string.IsNullOrEmpty(cookies["session_token"]));
+
+        using var after = new HttpRequestMessage(HttpMethod.Get, started.Headers.Location);
+        HttpFlow.Add(after, cookies);
+        using var next = await client.SendAsync(after);
+        Assert.Equal(HttpStatusCode.Redirect, next.StatusCode);
+        using var roomRequest = new HttpRequestMessage(HttpMethod.Get, next.Headers.Location);
+        HttpFlow.Add(roomRequest, cookies);
+        using var room = await client.SendAsync(roomRequest);
+        var roomHtml = await room.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, room.StatusCode);
+        Assert.Contains("All Talk", roomHtml);
+        Assert.Contains("/js/campfire.js", roomHtml);
+        Assert.Contains("/hubs/campfire", await ScriptAsync(client, roomHtml, "/js/campfire.js"));
+    }
+
+    [Fact]
+    public async Task Avatar_rejects_html_and_serves_only_an_image()
+    {
+        using var factory = new CampfireFactory();
+        using var client = HttpFlow.Client(factory);
+        var cookies = await HttpFlow.FirstRunAsync(client);
+        using var profile = new HttpRequestMessage(HttpMethod.Get, "/users/me/profile");
+        HttpFlow.Add(profile, cookies);
+        using var profileResponse = await client.SendAsync(profile);
+        var avatarUrl = FormAction(await profileResponse.Content.ReadAsStringAsync(), "avatar");
+        Assert.Contains("/avatar", avatarUrl);
+
+        using var html = new MultipartFormDataContent();
+        var script = new ByteArrayContent("<script>alert(1)</script>"u8.ToArray());
+        script.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/html");
+        html.Add(script, "avatar", "evil.html");
+        using var rejected = new HttpRequestMessage(HttpMethod.Post, avatarUrl) { Content = html };
+        HttpFlow.Add(rejected, cookies);
+        using var rejectedResponse = await client.SendAsync(rejected);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, rejectedResponse.StatusCode);
+        using var missing = await client.GetAsync(avatarUrl);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        using var image = new MultipartFormDataContent();
+        var file = new ByteArrayContent(png);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/html");
+        image.Add(file, "avatar", "avatar.html");
+        using var uploaded = new HttpRequestMessage(HttpMethod.Post, avatarUrl) { Content = image };
+        HttpFlow.Add(uploaded, cookies);
+        using var uploadedResponse = await client.SendAsync(uploaded);
+        Assert.Equal(HttpStatusCode.Redirect, uploadedResponse.StatusCode);
+
+        using var served = await client.GetAsync(avatarUrl);
+        var body = await served.Content.ReadAsByteArrayAsync();
+        Assert.Equal(HttpStatusCode.OK, served.StatusCode);
+        Assert.Equal("image/png", served.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("nosniff", served.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal(png, body);
+        Assert.DoesNotContain("text/html", served.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -168,6 +240,44 @@ public sealed class HttpTests
             SqliteConnection.ClearAllPools();
             Directory.Delete(directory, true);
         }
+    }
+
+    private static Dictionary<string, string> FormFields(string html)
+    {
+        var fields = new Dictionary<string, string>();
+        foreach (System.Text.RegularExpressions.Match input in System.Text.RegularExpressions.Regex.Matches(html, "<input\\b[^>]*>", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            var name = Attribute(input.Value, "name");
+            if (string.IsNullOrEmpty(name))
+                continue;
+            fields[name] = System.Net.WebUtility.HtmlDecode(Attribute(input.Value, "value") ?? "");
+        }
+        return fields;
+    }
+
+    private static string FormAction(string html, string? inputName = null)
+    {
+        var pattern = inputName is null
+            ? "<form\\b[^>]*\\baction=\"([^\"]*)\""
+            : "<form\\b[^>]*\\baction=\"([^\"]*" + System.Text.RegularExpressions.Regex.Escape(inputName) + "[^\"]*)\"";
+        var match = System.Text.RegularExpressions.Regex.Match(html, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success)
+            throw new InvalidOperationException("form has no action");
+        return System.Net.WebUtility.HtmlDecode(match.Groups[1].Value);
+    }
+
+    private static string? Attribute(string tag, string name)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(tag, name + "=\"([^\"]*)\"", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static async Task<string> ScriptAsync(HttpClient client, string html, string src)
+    {
+        Assert.Contains(src, html);
+        using var response = await client.GetAsync(src);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
     }
 
     private static int FreePort()

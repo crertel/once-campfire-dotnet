@@ -69,6 +69,7 @@ public static class CampfireWeb
             }
         });
         app.UseMiddleware<BrowserMiddleware>();
+        app.UseStaticFiles();
         app.UseMiddleware<SessionMiddleware>();
         app.UseAntiforgery();
         app.MapRazorPages();
@@ -260,12 +261,15 @@ public static class CampfireWeb
         return Results.Redirect($"/users/{id}");
     }
 
-    private static async Task<IResult> AvatarAsync(long id, CampfireDb db)
+    private static async Task<IResult> AvatarAsync(long id, HttpContext http, CampfireDb db)
     {
-        var user = await db.Users.FirstOrDefaultAsync(item => item.Id == id);
-        if (user?.Avatar is null)
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
+        var contentType = user?.Avatar is null ? null : ImageSniff.ContentType(user.Avatar);
+        if (user?.Avatar is null || contentType is null)
             return Results.NotFound();
-        return Results.File(user.Avatar, user.AvatarContentType ?? "application/octet-stream");
+        http.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        http.Response.Headers.Append("Content-Disposition", "inline");
+        return Results.Bytes(user.Avatar, contentType);
     }
 
     private static async Task<IResult> UploadAvatarAsync(long id, HttpContext http, CampfireApp campfire)
@@ -277,11 +281,11 @@ public static class CampfireWeb
             return Results.BadRequest();
         var form = await http.Request.ReadFormAsync();
         var file = form.Files.GetFile("avatar");
-        if (file is null)
+        if (file is null || file.Length == 0)
             return Results.BadRequest();
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer);
-        await campfire.SetAvatarAsync(id, buffer.ToArray(), file.ContentType);
+        await campfire.SetAvatarAsync(id, buffer.ToArray());
         return Results.Redirect($"/users/{id}");
     }
 

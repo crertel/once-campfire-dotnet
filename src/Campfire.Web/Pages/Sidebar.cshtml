@@ -4,10 +4,10 @@
     ViewData["Title"] = "Rooms";
 }
 <h1>Rooms</h1>
-<ul>
+<ul id="sidebar" data-live>
     @foreach (var membership in Model.Memberships)
     {
-        <li>
+        <li data-sidebar-room="@membership.RoomId">
             <a href="/rooms/@membership.RoomId">@(membership.Room.Name ?? "Direct")</a>
             @if (membership.Unread)
             {

@@ -15,12 +15,17 @@ public abstract class CampfirePage(CampfireApp app, CampfireDb db) : PageModel
     protected IActionResult? SignedOut() => CurrentUser is null ? Redirect("/session/new") : null;
 }
 
-public sealed class IndexModel(CampfireApp app, CampfireDb db) : CampfirePage(app, db)
+public sealed class IndexModel(CampfireApp app, CampfireDb db, IAntiforgery antiforgery) : CampfirePage(app, db)
 {
+    public string Csrf { get; private set; } = "";
+
     public async Task<IActionResult> OnGetAsync()
     {
         if (!await App.HasAccountAsync())
+        {
+            Csrf = antiforgery.GetAndStoreTokens(HttpContext).RequestToken ?? "";
             return Page();
+        }
         if (CurrentUser is null)
             return Redirect("/session/new");
         var room = await App.OriginalRoomAsync(CurrentUser.Id);

@@ -11,6 +11,14 @@
     <label>New password <input name="password" type="password" /></label>
     <button type="submit">Save</button>
 </form>
+<form method="post" action="/users/@Model.CurrentUser!.Id/avatar" enctype="multipart/form-data" asp-antiforgery="false">
+    <label>Avatar <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" /></label>
+    <button type="submit">Upload avatar</button>
+</form>
+@if (Model.CurrentUser?.Avatar is not null)
+{
+    <img src="/users/@Model.CurrentUser.Id/avatar" alt="" />
+}
 <form method="post" action="/session/logout" asp-antiforgery="false">
     <button type="submit">Sign out</button>
 </form>

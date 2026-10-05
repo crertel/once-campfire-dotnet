@@ -700,8 +700,9 @@ public sealed class CampfireApp
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task SetAvatarAsync(long userId, byte[] bytes, string contentType, CancellationToken cancellationToken = default)
+    public async Task SetAvatarAsync(long userId, byte[] bytes, CancellationToken cancellationToken = default)
     {
+        var contentType = ImageSniff.ContentType(bytes) ?? throw new AppException(422, "Avatar must be a PNG, JPEG, GIF, or WebP image.");
         var user = await RequireUserAsync(userId, cancellationToken);
         user.Avatar = bytes;
         user.AvatarContentType = contentType;

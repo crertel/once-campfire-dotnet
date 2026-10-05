@@ -4,7 +4,7 @@
     ViewData["Title"] = Model.Title;
 }
 <h1>@Model.Title</h1>
-<div id="messages">
+<div id="messages" data-live data-room-id="@Model.RoomId">
     @foreach (var message in Model.Messages)
     {
         <article class="message" id="message-@message.Id">
@@ -22,4 +22,5 @@
     <textarea id="composer" name="body">@Model.Draft</textarea>
     <button type="submit">Send</button>
 </form>
+<div id="presence" data-presence></div>
 <component type="typeof(RoomLive)" render-mode="Static" param-RoomId="@Model.RoomId" />
