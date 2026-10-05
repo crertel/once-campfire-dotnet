@@ -112,12 +112,14 @@ public static class BenchCli
         """
         Usage: campfire-bench <command> [options]
 
-          compare-http         Warm production Puma/Redis throughput, alternating two source trees
+          compare-http         Warm HTTP throughput for Rails, ASP.NET, or the two against each other
           compare-hot-paths    In-process rendering, queries, allocations and response parity
           measure              One already-running server, same keep-alive HTTP client
 
         Every measured response must be HTTP 200 with no transport errors. Responses are
-        uncompressed. Login uses the sign-in form's CSRF token. compare-hot-paths still runs
+        uncompressed. Login uses the sign-in form's CSRF token. compare-http --server rails
+        runs Puma and Redis, --server asp runs Kestrel, and the default both compares the
+        Rails baseline with this checkout's ASP.NET server. compare-hot-paths still runs
         bench/message_hot_paths.rb inside the Rails image.
         """;
 }

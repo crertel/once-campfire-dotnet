@@ -65,11 +65,14 @@ public class WorkloadsAndStorageTests
 
             Assert.Equal(0, await BenchCli.RunAsync(["--help"]));
             Assert.Contains("compare-http", stdout.ToString(), StringComparison.Ordinal);
+            Assert.Contains("ASP.NET", stdout.ToString(), StringComparison.Ordinal);
 
             stdout.GetStringBuilder().Clear();
             stderr.GetStringBuilder().Clear();
             Assert.Equal(0, await BenchCli.RunAsync(["compare-http", "--help"]));
             Assert.Contains("--baseline", stdout.ToString(), StringComparison.Ordinal);
+            Assert.Contains("--server", stdout.ToString(), StringComparison.Ordinal);
+            Assert.Contains("ASP.NET server", stdout.ToString(), StringComparison.Ordinal);
 
             stdout.GetStringBuilder().Clear();
             stderr.GetStringBuilder().Clear();
