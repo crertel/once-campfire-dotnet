@@ -1,5 +1,7 @@
 using System.Data.Common;
 using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
 using System.Reflection;
 using Campfire.Core;
 using Microsoft.AspNetCore.Antiforgery;
@@ -10,7 +12,7 @@ using Microsoft.Extensions.FileProviders;
 
 namespace Campfire.Web;
 
-public static class CampfireWeb
+public static partial class CampfireWeb
 {
     public static WebApplication Build(WebApplicationBuilder builder)
     {
@@ -31,6 +33,22 @@ public static class CampfireWeb
             options.UseSqlite($"Data Source={full}");
             options.AddInterceptors(serviceProvider.GetRequiredService<SqliteSetup>());
         });
+        services.AddSingleton(static serviceProvider =>
+        {
+            var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+            var selected = configuration["Campfire:Database"]
+                ?? Environment.GetEnvironmentVariable("CAMPFIRE_DB")
+                ?? Path.Combine("storage", "db", "campfire.sqlite");
+            var databaseDirectory = Path.GetDirectoryName(Path.GetFullPath(selected)) ?? Path.GetFullPath("storage");
+            return new FileCabinet(Path.GetFullPath(Path.Combine(databaseDirectory, "..", "files")));
+        });
+        services.AddSingleton(static serviceProvider => AppSecrets.Load(Path.GetFullPath(Path.Combine(serviceProvider.GetRequiredService<FileCabinet>().Root, ".."))));
+        services.AddSingleton<DeliveryQueue>();
+        services.AddSingleton<IOutbound>(static serviceProvider => serviceProvider.GetRequiredService<DeliveryQueue>());
+        services.AddHostedService(static serviceProvider => serviceProvider.GetRequiredService<DeliveryQueue>());
+        services.AddHttpClient("webhooks");
+        services.AddHttpClient<ILinkFetcher, GuardedLinkFetcher>()
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { ConnectCallback = ConnectPublic });
         services.AddScoped<CampfireApp>();
         services.AddAntiforgery(options =>
         {
@@ -42,7 +60,10 @@ public static class CampfireWeb
             options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         });
         var assembly = typeof(CampfireWeb).Assembly;
-        services.AddRazorPages().ConfigureApplicationPartManager(manager => AddAssembly(manager, assembly));
+        services.AddRazorPages(options =>
+        {
+            options.Conventions.AddPageRoute("/Room", @"/rooms/{id:long}/@{messageId:long}");
+        }).ConfigureApplicationPartManager(manager => AddAssembly(manager, assembly));
         services.AddRazorComponents().AddInteractiveServerComponents();
         services.AddSignalR(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment());
 
@@ -50,7 +71,7 @@ public static class CampfireWeb
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<CampfireDb>();
-            db.Database.EnsureCreated();
+            db.EnsureReadyAsync().GetAwaiter().GetResult();
         }
 
         if (app.Environment.IsDevelopment())
@@ -78,6 +99,25 @@ public static class CampfireWeb
             {
                 FileProvider = new PhysicalFileProvider(images),
                 RequestPath = "/assets/images",
+            });
+        }
+
+        var sounds = RailsAssets.SoundRoot();
+        if (sounds is not null)
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(sounds),
+                RequestPath = "/assets/sounds",
+            });
+        }
+        var soundImages = RailsAssets.SoundImageRoot();
+        if (soundImages is not null)
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(soundImages),
+                RequestPath = "/assets/images/sounds",
             });
         }
 
@@ -115,7 +155,9 @@ public static class CampfireWeb
         app.MapPost("/rooms/{id:long}/messages/{messageId:long}/boosts", CreateBoostAsync).DisableAntiforgery();
         app.MapDelete("/rooms/{id:long}/messages/{messageId:long}/boosts", DeleteBoostAsync).DisableAntiforgery();
         app.MapPost("/rooms/{id:long}/draft", SaveDraftAsync).DisableAntiforgery();
-        app.MapPost("/rooms/{id:long}/{botKey}/messages", BotMessageAsync).DisableAntiforgery();
+        app.MapMethods("/rooms/{id:long}/{botKey}/messages/{messageId:long}/boosts", [HttpMethods.Post, HttpMethods.Delete], BotBoostAsync).DisableAntiforgery();
+        app.MapMethods("/rooms/{id:long}/{botKey}/messages/{messageId:long}", [HttpMethods.Put, HttpMethods.Post, HttpMethods.Delete], BotMessageItemAsync).DisableAntiforgery();
+        app.MapMethods("/rooms/{id:long}/{botKey}/messages", [HttpMethods.Get, HttpMethods.Post], BotMessagesAsync).DisableAntiforgery();
 
         app.MapPost("/users/{id:long}/ban", BanAsync).DisableAntiforgery();
         app.MapPost("/users/{id:long}/unban", UnbanAsync).DisableAntiforgery();
@@ -126,6 +168,24 @@ public static class CampfireWeb
         app.MapPost("/account/bots", CreateBotAsync).DisableAntiforgery();
         app.MapPost("/account/bots/{id:long}/key", ResetBotAsync).DisableAntiforgery();
         app.MapPost("/users/me/push_subscriptions", PushAsync).DisableAntiforgery();
+        app.MapPost("/users/me/push_subscriptions/test", TestPushAsync).DisableAntiforgery();
+        MapProduct(app);
+    }
+
+    private static async ValueTask<Stream> ConnectPublic(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    {
+        var address = PrivateNetwork.Resolve(context.DnsEndPoint.Host, CampfireApp.SystemDns);
+        var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+        try
+        {
+            await socket.ConnectAsync(new IPEndPoint(address, context.DnsEndPoint.Port), cancellationToken);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
     }
 
     private static async Task<IResult> LoginAsync(HttpContext http, CampfireApp campfire, IAntiforgery antiforgery, LoginRateLimiter limiter)
@@ -189,8 +249,11 @@ public static class CampfireWeb
             return Results.Unauthorized();
         var form = await http.Request.ReadFormAsync();
         var body = form["body"].ToString();
+        if (!string.IsNullOrEmpty(form["unfurl_html"]))
+            body += form["unfurl_html"].ToString();
         var clientId = form["client_message_id"].ToString();
-        var message = await campfire.CreateMessageAsync(user.Id, id, body, string.IsNullOrEmpty(clientId) ? null : clientId);
+        var file = await ReadFileAsync(form);
+        var message = await campfire.CreateMessageAsync(user.Id, id, body, string.IsNullOrEmpty(clientId) ? null : clientId, file, true);
         return Results.Redirect($"/rooms/{id}");
     }
 
@@ -242,17 +305,6 @@ public static class CampfireWeb
         var form = await http.Request.ReadFormAsync();
         await campfire.SaveDraftAsync(user.Id, id, form["body"].ToString());
         return Results.NoContent();
-    }
-
-    private static async Task<IResult> BotMessageAsync(long id, string botKey, HttpContext http, CampfireApp campfire)
-    {
-        var bot = await campfire.AuthenticateBotAsync(botKey);
-        if (bot is null)
-            return Results.Unauthorized();
-        using var document = await System.Text.Json.JsonDocument.ParseAsync(http.Request.Body);
-        var body = document.RootElement.TryGetProperty("body", out var value) ? value.GetString() ?? "" : "";
-        var message = await campfire.CreateMessageAsync(bot.Id, id, body, null);
-        return Results.Json(new { id = message.Id, body = message.PlainText });
     }
 
     private static async Task<IResult> BanAsync(long id, HttpContext http, CampfireApp campfire)

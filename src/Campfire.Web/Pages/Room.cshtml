@@ -23,14 +23,29 @@
             @Model.Title
         </h1>
     </span>
-    <a class="btn" href="/rooms/@Model.RoomId">
+    @{
+        var settingsKind = Model.Room?.Kind switch
+        {
+            RoomKind.Direct => "directs",
+            RoomKind.Closed => "closeds",
+            _ => "opens",
+        };
+        var mine = Model.Room?.Memberships.FirstOrDefault(item => item.UserId == user?.Id);
+        var involvement = mine?.Involvement ?? Involvement.Mentions;
+        var next = CampfireApp.NextInvolvement(Model.Room?.Kind ?? RoomKind.Open, involvement);
+        var bell = "/assets/images/notification-bell-" + involvement.ToString().ToLowerInvariant() + ".svg";
+    }
+    <a class="btn" href="/rooms/@settingsKind/@Model.RoomId/edit">
         <img src="/assets/images/menu-dots-horizontal.svg" alt="" width="20" height="20">
         <span class="for-screen-reader">Settings for this @(Model.Room?.Kind == RoomKind.Direct ? "Ping" : "room")</span>
     </a>
-    <button class="btn" type="button">
-        <img src="/assets/images/notification-bell-mentions.svg" alt="" width="20" height="20">
-        <span class="for-screen-reader">Notification settings for this @(Model.Room?.Kind == RoomKind.Direct ? "Ping" : "room")</span>
-    </button>
+    <form method="post" action="/rooms/@Model.RoomId/involvement">
+        <input type="hidden" name="involvement" value="@next">
+        <button class="btn @involvement.ToString().ToLowerInvariant()" type="submit">
+            <img src="@bell" alt="" width="20" height="20">
+            <span class="for-screen-reader">Notification settings for this @(Model.Room?.Kind == RoomKind.Direct ? "Ping" : "room")</span>
+        </button>
+    </form>
 }
 @section Sidebar {
     <partial name="Shared/_Sidebar" model="Model.Memberships" />
@@ -89,21 +104,29 @@
             <img src="/assets/images/search.svg" alt="" width="20" height="20">
             <span class="for-screen-reader">Search</span>
         </a>
-        <form method="post" id="composer-frame">
+        <form method="post" id="composer-frame" enctype="multipart/form-data" data-room-id="@Model.RoomId" data-autocomplete="/autocompletable/users" data-unfurl="/unfurl_link">
             <input type="hidden" name="client_message_id" value="">
-            <div class="composer__filelist flex flex--align-center gap flex-wrap"></div>
+            <input type="hidden" name="unfurl_html" value="">
+            <div class="composer__filelist flex flex--align-center gap flex-wrap" data-filelist></div>
+            <div class="composer__toolbar flex gap" data-toolbar hidden></div>
+            <div class="mention-list" data-mentions hidden></div>
+            <div id="typing" class="txt-small" data-typing></div>
             <div class="flex composer__input input input--actor fill-white min-width" style="--input-border-radius: 1.3rem">
                 <div class="flex align-end gap full-width">
                     <img src="/assets/images/messages-outlined.svg" alt="" width="22" height="22" class="composer__input-hint colorize--black">
                     <div class="flex flex-column flex-item-grow min-width gap">
                         <textarea id="composer" name="body" rows="1" class="input lexxy-content" aria-label="Write a message">@Model.Draft</textarea>
                     </div>
+                    <button class="btn btn--borderless txt-small flex-item-no-shrink" type="button" data-emoji>
+                        <span aria-hidden="true">☺</span>
+                        <span class="for-screen-reader">Emoji and sounds</span>
+                    </button>
                     <label class="btn btn--borderless txt-small flex-item-no-shrink composer__attachment-btn input--file">
                         <img src="/assets/images/attachment.svg" alt="" width="22" height="22" class="colorize--black">
-                        <input type="file" multiple>
+                        <input type="file" name="attachment">
                         <span class="for-screen-reader">Attach a file</span>
                     </label>
-                    <button class="btn btn--borderless txt-small flex-item-no-shrink composer__rich-text-btn" type="button">
+                    <button class="btn btn--borderless txt-small flex-item-no-shrink composer__rich-text-btn" type="button" data-rich-text>
                         <img src="/assets/images/text-options.svg" alt="" width="20" height="20" class="colorize--black">
                         <span class="for-screen-reader">Rich text</span>
                     </button>

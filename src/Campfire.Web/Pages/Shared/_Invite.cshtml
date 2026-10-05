@@ -9,18 +9,18 @@
         </span>
     </label>
     <div class="flex align-center gap">
-        <span class="btn">
+        <a class="btn" href="/qr_code/@QrCode.Token(Model.Url)" target="_blank">
             <img src="/assets/images/qr-code.svg" alt="" width="20" height="20" class="colorize--black">
             <span class="for-screen-reader">Show join link QR code</span>
-        </span>
-        <span class="btn">
+        </a>
+        <button class="btn" type="button" data-copy="@Model.Url">
             <img src="/assets/images/copy-paste.svg" alt="" width="20" height="20" class="colorize--black">
             <span class="for-screen-reader">Copy join link</span>
-        </span>
-        <span class="btn">
+        </button>
+        <button class="btn" type="button" data-share="@Model.Url">
             <img src="/assets/images/share.svg" alt="" width="20" height="20" class="colorize--black">
             <span class="for-screen-reader">Share join link</span>
-        </span>
+        </button>
         @if (Model.Administrator)
         {
             <form method="post" action="/account">

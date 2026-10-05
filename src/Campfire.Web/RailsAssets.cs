@@ -12,6 +12,29 @@ public static partial class RailsAssets
         return root is null ? null : Path.Combine(root, "images");
     }
 
+    public static string? SoundRoot()
+    {
+        var root = FindRoot();
+        var path = root is null ? null : Path.Combine(root, "sounds");
+        return path is not null && Directory.Exists(path) ? path : null;
+    }
+
+    public static string? SoundImageRoot()
+    {
+        var images = ImageRoot();
+        var path = images is null ? null : Path.Combine(images, "sounds");
+        return path is not null && Directory.Exists(path) ? path : null;
+    }
+
+    public static string? LogoFile(bool small)
+    {
+        var images = ImageRoot();
+        if (images is null)
+            return null;
+        var path = Path.Combine(images, "logos", small ? "app-icon-192.png" : "app-icon.png");
+        return File.Exists(path) ? path : null;
+    }
+
     private static readonly Lazy<string> Sheet = new(BuildSheet);
 
     private static string BuildSheet()

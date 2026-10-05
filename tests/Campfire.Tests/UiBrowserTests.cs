@@ -34,7 +34,7 @@ public sealed class UiBrowserTests
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Campfire:Database"] = Path.Combine(directory, "campfire.sqlite"),
+            ["Campfire:Database"] = Path.Combine(directory, "db", "campfire.sqlite"),
         });
         var app = CampfireWeb.Build(builder);
         await app.StartAsync();
@@ -74,7 +74,7 @@ public sealed class UiBrowserTests
             HttpFlow.Add(post, cookies);
             using var posted = await client.SendAsync(post);
             Assert.Equal(HttpStatusCode.Redirect, posted.StatusCode);
-            await StampHelloAsync(Path.Combine(directory, "campfire.sqlite"));
+            await StampHelloAsync(Path.Combine(directory, "db", "campfire.sqlite"));
 
             await page.Size(1280, 800, false);
             await page.Go($"http://127.0.0.1:{port}{roomPath}", cookies["session_token"]);
@@ -106,6 +106,118 @@ public sealed class UiBrowserTests
         {
             if (!string.IsNullOrEmpty(capture))
                 await File.WriteAllTextAsync(Path.Combine(capture, "page-console.txt"), console.Length == 0 ? "no page errors\n" : console.ToString());
+            await app.StopAsync();
+            await app.DisposeAsync();
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public async Task New_room_composer_and_profile_controls_work_in_the_browser()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"campfire-ui-product-{Guid.NewGuid():n}");
+        Directory.CreateDirectory(directory);
+        var port = FreePort();
+        var content = WebContentRoot();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = [],
+            EnvironmentName = "Development",
+            ContentRootPath = content,
+            WebRootPath = Path.Combine(content, "wwwroot"),
+        });
+        builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Campfire:Database"] = Path.Combine(directory, "db", "campfire.sqlite"),
+        });
+        var app = CampfireWeb.Build(builder);
+        await app.StartAsync();
+        using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
+        using var client = new HttpClient(handler) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+        var origin = $"http://127.0.0.1:{port}";
+        try
+        {
+            var cookies = await HttpFlow.FirstRunAsync(client);
+            using var home = new HttpRequestMessage(HttpMethod.Get, "/");
+            HttpFlow.Add(home, cookies);
+            using var redirected = await client.SendAsync(home);
+            var roomPath = redirected.Headers.Location!.OriginalString;
+            using var account = new HttpRequestMessage(HttpMethod.Get, "/account");
+            HttpFlow.Add(account, cookies);
+            using var accountResponse = await client.SendAsync(account);
+            var code = Regex.Match(await accountResponse.Content.ReadAsStringAsync(), "id=\"join-code\">([^<]+)<").Groups[1].Value;
+            using var joiner = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }) { BaseAddress = client.BaseAddress };
+            var jason = new Dictionary<string, string>();
+            using var joinPage = await joiner.GetAsync($"/join/{code}");
+            HttpFlow.Collect(joinPage, jason);
+            using var join = new HttpRequestMessage(HttpMethod.Post, $"/join/{code}")
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["name"] = "Jason",
+                    ["email_address"] = "jason@37signals.com",
+                    ["password"] = "secret123456",
+                    ["authenticity_token"] = HttpFlow.Token(await joinPage.Content.ReadAsStringAsync()),
+                }),
+            };
+            HttpFlow.Add(join, jason);
+            using var joined = await joiner.SendAsync(join);
+            Assert.Equal(HttpStatusCode.Redirect, joined.StatusCode);
+
+            await using var browser = await ChromeSession.Start();
+            await using var page = await browser.Open();
+            await page.LightScheme();
+            await page.Size(1280, 800, false);
+            await page.Go(origin + roomPath, cookies["session_token"]);
+            await page.WaitFor("document.documentElement.dataset.campfireConnected === '1' && !!document.querySelector('#composer')");
+            await page.Eval("document.querySelector('[data-emoji]').click()");
+            await page.WaitFor("!![...document.querySelectorAll('[data-emoji-panel] button')].some((button) => button.textContent === '/bell')");
+            await page.Eval("document.querySelector('[data-rich-text]').click()");
+            await page.WaitFor("document.querySelector('[data-editor]') && document.querySelector('[data-toolbar]').innerText.includes('bold')");
+            await page.Eval("document.querySelector('[data-editor]').innerHTML = '<strong>bold hello</strong>'");
+            await page.Eval("document.querySelector('#composer-frame').requestSubmit()");
+            await page.WaitFor("document.body.innerText.includes('bold hello') && document.documentElement.dataset.campfireConnected === '1'");
+            Assert.Contains("<strong>bold hello</strong>", await page.Eval("document.body.innerHTML"));
+
+            await page.Eval("document.querySelector('a[href=\"/rooms/opens/new\"]').click()");
+            await page.WaitFor("!!document.querySelector('input[name=\"room[name]\"]')");
+            await page.Eval("document.querySelector('a[href=\"/rooms/closeds/new\"]').click()");
+            await page.WaitFor("!!document.querySelector('[data-filter]')");
+            await page.Eval("""
+                (() => {
+                  const input = document.querySelector('[data-filter]');
+                  input.value = 'jason';
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                })()
+                """);
+            await page.WaitFor("""
+                (() => {
+                  const jason = document.querySelector('[data-name="Jason"]');
+                  const david = document.querySelector('[data-name="David"]');
+                  return !!(jason && !jason.hidden && david && david.hidden);
+                })()
+                """);
+            await page.Size(390, 844, true);
+            var width = int.Parse(await page.Eval("String(Math.round(document.querySelector('input[name=\"room[name]\"]').getBoundingClientRect().width))"));
+            Assert.InRange(width, 200, 390);
+
+            await page.Size(1280, 800, false);
+            await page.Go(origin + "/users/me/profile", cookies["session_token"]);
+            await page.WaitFor("!!document.querySelector('#session_transfer_url')");
+            Assert.Contains("/session/transfers/", await page.Eval("document.querySelector('#session_transfer_url').value"));
+            Assert.StartsWith("/qr_code/", await page.Eval("document.querySelector('a[href^=\"/qr_code/\"]').getAttribute('href')"));
+            await page.Go(origin + "/account/bots", cookies["session_token"]);
+            await page.WaitFor("document.body.innerText.includes('Chat bots')");
+            await page.Go(origin + roomPath, cookies["session_token"]);
+            await page.WaitFor("document.documentElement.dataset.campfireConnected === '1' && !!document.querySelector('a[href*=\"/edit\"]')");
+            await page.Eval("document.querySelector('a[href*=\"/edit\"]').click()");
+            await page.WaitFor("!!document.querySelector('input[name=\"room[name]\"]')");
+            Assert.True(page.Errors.Count == 0, string.Join('\n', page.Errors));
+        }
+        finally
+        {
             await app.StopAsync();
             await app.DisposeAsync();
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();

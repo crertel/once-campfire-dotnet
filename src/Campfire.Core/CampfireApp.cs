@@ -7,7 +7,7 @@ namespace Campfire.Core;
 
 public sealed record MessagePage(bool RoomHasMessages, IReadOnlyList<Message> Messages);
 
-public sealed class CampfireApp
+public sealed partial class CampfireApp
 {
     public const int PageSize = 40;
     public static readonly TimeSpan ConnectionTtl = TimeSpan.FromSeconds(60);
@@ -15,12 +15,24 @@ public sealed class CampfireApp
     private readonly CampfireDb _db;
     private readonly TimeProvider _time;
     private readonly ICampfireRealtime _realtime;
+    private readonly FileCabinet? _files;
+    private readonly IOutbound? _outbound;
+    private readonly AppSecrets? _secrets;
 
-    public CampfireApp(CampfireDb db, TimeProvider time, ICampfireRealtime realtime)
+    public CampfireApp(
+        CampfireDb db,
+        TimeProvider time,
+        ICampfireRealtime realtime,
+        FileCabinet? files = null,
+        IOutbound? outbound = null,
+        AppSecrets? secrets = null)
     {
         _db = db;
         _time = time;
         _realtime = realtime;
+        _files = files;
+        _outbound = outbound;
+        _secrets = secrets;
     }
 
     private DateTime Now => _time.GetUtcNow().UtcDateTime;
@@ -341,38 +353,59 @@ public sealed class CampfireApp
     public static bool IsConnected(Membership membership, DateTime now) =>
         membership.ConnectedAt is not null && membership.ConnectedAt.Value >= now - ConnectionTtl;
 
-    public async Task<Message> CreateMessageAsync(long userId, long roomId, string body, string? clientMessageId, CancellationToken cancellationToken = default)
+    public async Task<Message> CreateMessageAsync(long userId, long roomId, string body, string? clientMessageId, CancellationToken cancellationToken = default) =>
+        await CreateMessageAsync(userId, roomId, body, clientMessageId, null, true, cancellationToken);
+
+    public async Task<Message> CreateMessageAsync(
+        long userId,
+        long roomId,
+        string body,
+        string? clientMessageId,
+        IncomingFile? file,
+        bool notifyWebhooks,
+        CancellationToken cancellationToken = default)
     {
         await RequireMembershipAsync(userId, roomId, cancellationToken);
         if (!string.IsNullOrEmpty(clientMessageId))
         {
-            var prior = await _db.Messages.FirstOrDefaultAsync(
+            var prior = await _db.Messages.Include(message => message.Creator).Include(message => message.Attachment).FirstOrDefaultAsync(
                 message => message.RoomId == roomId && message.ClientMessageId == clientMessageId,
                 cancellationToken);
             if (prior is not null)
                 return prior;
         }
 
+        if (string.IsNullOrWhiteSpace(body) && file is null)
+            throw new AppException(422, "A message needs text or a file.");
+
         var members = await MemberUsersAsync(roomId, cancellationToken);
         var creator = members.First(user => user.Id == userId);
-        var html = HtmlText.Compose(body, members, null);
+        var html = HtmlText.Compose(body ?? "", members, null);
+        var plain = HtmlText.ToPlain(html);
+        if (plain.Length == 0 && file is not null)
+            plain = file.FileName;
         var now = Now;
         var message = new Message
         {
             RoomId = roomId,
             CreatorId = userId,
+            Creator = creator,
             ClientMessageId = string.IsNullOrEmpty(clientMessageId) ? Guid.NewGuid().ToString("n") : clientMessageId,
             Html = html,
-            PlainText = HtmlText.ToPlain(html),
+            PlainText = plain,
             CreatedAt = now,
             UpdatedAt = now,
         };
         _db.Messages.Add(message);
         await _db.SaveChangesAsync(cancellationToken);
+        if (file is not null)
+            message.Attachment = await StoreAttachmentAsync(message, file, cancellationToken);
         await ReindexAsync(message, cancellationToken);
         await StampUnreadAsync(message, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
         await BroadcastMessageAsync(message, creator, cancellationToken);
+        if (notifyWebhooks)
+            await FanOutAsync(message, creator, cancellationToken);
         return message;
     }
 
@@ -419,7 +452,7 @@ public sealed class CampfireApp
                 page = [];
             else
             {
-                page = await BeforeQuery(roomId, cursor).Include(message => message.Creator).Include(message => message.Boosts).ThenInclude(boost => boost.Booster).ToListAsync(cancellationToken);
+                page = await BeforeQuery(roomId, cursor).Include(message => message.Creator).Include(message => message.Attachment).Include(message => message.Boosts).ThenInclude(boost => boost.Booster).ToListAsync(cancellationToken);
                 page.Reverse();
             }
         }
@@ -433,12 +466,13 @@ public sealed class CampfireApp
                     .OrderBy(message => message.CreatedAt).ThenBy(message => message.Id)
                     .Take(PageSize)
                     .Include(message => message.Creator)
+                    .Include(message => message.Attachment)
                     .Include(message => message.Boosts).ThenInclude(boost => boost.Booster)
                     .ToListAsync(cancellationToken);
         }
         else
         {
-            page = await LastPageQuery(roomId).Include(message => message.Creator).Include(message => message.Boosts).ThenInclude(boost => boost.Booster).ToListAsync(cancellationToken);
+            page = await LastPageQuery(roomId).Include(message => message.Creator).Include(message => message.Attachment).Include(message => message.Boosts).ThenInclude(boost => boost.Booster).ToListAsync(cancellationToken);
             page.Reverse();
         }
 
@@ -535,6 +569,24 @@ public sealed class CampfireApp
         if (user is null || !Passwords.Verify(password, user.PasswordHash))
             return null;
 
+        var now = Now;
+        var session = new Session
+        {
+            Token = UrlToken(),
+            UserId = user.Id,
+            User = user,
+            IpAddress = ip,
+            UserAgent = userAgent,
+            LastActiveAt = now,
+            CreatedAt = now,
+        };
+        _db.Sessions.Add(session);
+        await _db.SaveChangesAsync(cancellationToken);
+        return session;
+    }
+
+    public async Task<Session> StartSessionAsync(User user, string? ip, string? userAgent, CancellationToken cancellationToken = default)
+    {
         var now = Now;
         var session = new Session
         {
@@ -816,7 +868,7 @@ public sealed class CampfireApp
         RoomId = message.RoomId,
         CreatorId = creator.Id,
         Creator = creator.Name,
-        Html = message.Html,
+        Html = Presentation.Body(message),
         Text = message.PlainText,
         CreatedAt = new DateTimeOffset(message.CreatedAt.Kind switch
         {
@@ -840,6 +892,12 @@ public sealed class CampfireApp
         _db.MessageTokens.RemoveRange(tokens);
         var boosts = await _db.Boosts.Where(boost => boost.MessageId == message.Id).ToListAsync(cancellationToken);
         _db.Boosts.RemoveRange(boosts);
+        var attachment = await _db.Attachments.FirstOrDefaultAsync(item => item.MessageId == message.Id, cancellationToken);
+        if (attachment is not null)
+        {
+            _files?.Delete(attachment.StorageKey);
+            _db.Attachments.Remove(attachment);
+        }
         _db.Messages.Remove(message);
         await QuietAsync(() => _realtime.RemovedAsync(new LiveRemoval { Id = message.Id, RoomId = message.RoomId }, cancellationToken));
     }

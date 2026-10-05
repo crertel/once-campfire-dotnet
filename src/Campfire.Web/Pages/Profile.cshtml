@@ -36,6 +36,29 @@
                 <button class="for-screen-reader" type="submit">Upload avatar</button>
             </form>
         </div>
+        <fieldset class="flex flex-column gap">
+            <legend class="for-screen-reader">Sign in on another device</legend>
+            <label for="session_transfer_url" class="for-screen-reader">Use this link to login automatically on another device</label>
+            <input type="text" class="input" id="session_transfer_url" value="@Model.TransferUrl" readonly>
+            <div class="flex align-center center gap">
+                <a class="btn" href="/qr_code/@QrCode.Token(Model.TransferUrl)" target="_blank">
+                    <img src="/assets/images/qr-code.svg" alt="" width="20" height="20" class="colorize--black">
+                    <span class="for-screen-reader">Show auto-login QR code</span>
+                </a>
+                <button class="btn" type="button" data-copy="@Model.TransferUrl">
+                    <img src="/assets/images/copy-paste.svg" alt="" width="20" height="20" class="colorize--black">
+                    <span class="for-screen-reader">Copy auto-login link</span>
+                </button>
+                <button class="btn" type="button" data-share="@Model.TransferUrl" data-share-title="Your sign-in link">
+                    <img src="/assets/images/share.svg" alt="" width="20" height="20" class="colorize--black">
+                    <span class="for-screen-reader">Share auto-login link</span>
+                </button>
+            </div>
+        </fieldset>
+        <form method="post" action="/users/me/push_subscriptions/test">
+            <button class="btn" type="button" data-enable-push>Enable notifications</button>
+            <button class="btn" type="submit">Send a test notification</button>
+        </form>
         <form method="post">
             <div class="flex flex-column gap">
                 <div class="flex align-center gap">

@@ -79,13 +79,13 @@ public sealed class AppWorld : IDisposable
     }
 }
 
-public sealed class CampfireFactory : WebApplicationFactory<Program>
+public class CampfireFactory : WebApplicationFactory<Program>
 {
     public string DatabasePath { get; }
 
     public CampfireFactory(string? databasePath = null)
     {
-        DatabasePath = databasePath ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"campfire-host-{Guid.NewGuid():n}", "campfire.sqlite");
+        DatabasePath = databasePath ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"campfire-host-{Guid.NewGuid():n}", "db", "campfire.sqlite");
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(DatabasePath)!);
     }
 

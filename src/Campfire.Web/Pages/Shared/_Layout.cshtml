@@ -1,4 +1,6 @@
 @using Campfire.Core
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
 @{
     var account = Context.Items["Account"] as Account;
     var user = Context.Items["User"] as User;
@@ -9,6 +11,8 @@
     if (account?.Logo is { Length: > 0 })
         bodyClass = string.IsNullOrEmpty(bodyClass) ? "account-has-logo" : bodyClass + " account-has-logo";
     var csrf = ViewData["Csrf"] as string;
+    if (string.IsNullOrEmpty(csrf))
+        csrf = Antiforgery.GetAndStoreTokens(Context).RequestToken;
     var alert = ViewData["Alert"] as string;
 }
 <!DOCTYPE html>
@@ -30,6 +34,7 @@
         <meta name="current-user-name" content="@user.Name">
     }
     @await RenderSectionAsync("Head", required: false)
+    <link rel="manifest" href="/webmanifest">
     <link rel="stylesheet" href="/assets/application.css">
     @if (!string.IsNullOrEmpty(account?.CustomStyles))
     {

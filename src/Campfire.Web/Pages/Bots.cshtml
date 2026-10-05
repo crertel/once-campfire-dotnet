@@ -1,0 +1,68 @@
+@page "/account/bots"
+@model BotsModel
+@using Campfire.Core
+@{
+    ViewData["Title"] = "Chat bots";
+    var origin = $"{Request.Scheme}://{Request.Host}";
+}
+@section Nav {
+    <div class="flex-item-justify-start">
+        <a class="btn" href="/account">
+            <img src="/assets/images/arrow-left.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Go Back</span>
+        </a>
+    </div>
+}
+<section class="panel panel--wide txt-align-center flex flex-column gap">
+    <h1 class="margin-none">Chat bots</h1>
+    <p class="margin-none">With chat bots, other sites and services can post updates directly to Campfire.</p>
+    @if (!string.IsNullOrEmpty(Model.Error))
+    {
+        <p role="alert">@Model.Error</p>
+    }
+    <form method="post" class="flex flex-column gap">
+        <input type="hidden" name="create" value="1">
+        <label class="flex align-center gap">Name <input class="input flex-item-grow" name="name" required></label>
+        <label class="flex align-center gap">Webhook <input class="input flex-item-grow" name="webhook_url" placeholder="https://example.com/campfire"></label>
+        <button class="btn btn--reversed" type="submit">
+            <img src="/assets/images/bot.svg" alt="" width="20" height="20">
+            <img src="/assets/images/add.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Add a chat bot</span>
+        </button>
+    </form>
+    <menu class="flex flex-column gap margin-none pad">
+        @foreach (var bot in Model.Bots)
+        {
+            var key = CampfireApp.BotKey(bot);
+            var room = Model.Rooms.FirstOrDefault();
+            <li class="flex flex-column gap pad fill-shade border-radius txt-align-start">
+                <form method="post" class="flex flex-column gap">
+                    <input type="hidden" name="bot_id" value="@bot.Id">
+                    <label class="flex align-center gap">Name <input class="input flex-item-grow" name="name" value="@bot.Name"></label>
+                    <label class="flex align-center gap">Webhook <input class="input flex-item-grow" name="webhook_url" value="@bot.Webhook?.Url"></label>
+                    <button class="btn" type="submit">Save</button>
+                </form>
+                <label class="flex align-center gap">Key <input class="input flex-item-grow" value="@key" readonly data-copy-source></label>
+                @if (room is not null)
+                {
+                    var post = $"curl -d 'Hello from {bot.Name}' {origin}/rooms/{room.Id}/{key}/messages";
+                    var upload = $"curl -F \"attachment=@/path/to/file\" {origin}/rooms/{room.Id}/{key}/messages";
+                    <label class="flex align-center gap">Post <input class="input flex-item-grow" value="@post" readonly></label>
+                    <label class="flex align-center gap">Upload <input class="input flex-item-grow" value="@upload" readonly></label>
+                }
+                <div class="flex gap">
+                    <form method="post">
+                        <input type="hidden" name="bot_id" value="@bot.Id">
+                        <input type="hidden" name="reset" value="1">
+                        <button class="btn" type="submit">Reset key</button>
+                    </form>
+                    <form method="post">
+                        <input type="hidden" name="bot_id" value="@bot.Id">
+                        <input type="hidden" name="deactivate" value="1">
+                        <button class="btn" type="submit">Remove bot</button>
+                    </form>
+                </div>
+            </li>
+        }
+    </menu>
+</section>

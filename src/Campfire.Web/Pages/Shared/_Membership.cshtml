@@ -17,9 +17,13 @@
     </a>
     <hr class="separator" aria-hidden="true">
     <span class="txt-small">
-        <button class="btn @involvement" type="button" role="checkbox" aria-checked="true">
-            <img src="@bell" width="20" height="20" alt="" aria-hidden="true">
-            <span class="for-screen-reader">@label</span>
-        </button>
+        <form method="post" action="/rooms/@Model.RoomId/involvement">
+            <input type="hidden" name="involvement" value="@CampfireApp.NextInvolvement(Model.Room.Kind, Model.Involvement)">
+            <input type="hidden" name="return" value="/users/me/profile">
+            <button class="btn @involvement" type="submit" role="checkbox" aria-checked="true">
+                <img src="@bell" width="20" height="20" alt="" aria-hidden="true">
+                <span class="for-screen-reader">@label</span>
+            </button>
+        </form>
     </span>
 </li>

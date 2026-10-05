@@ -17,7 +17,7 @@
     @if (admin)
     {
         <div class="flex align-center gap flex-item-justify-end">
-            <a class="btn" href="/account">
+            <a class="btn" href="/account/bots">
                 <img src="/assets/images/bot.svg" alt="" width="20" height="20">
                 <span class="for-screen-reader">Set up chat bots</span>
             </a>
@@ -32,6 +32,23 @@
 {
     <section class="panel txt-align-center flex flex-column gap">
         <h1 class="flex-item-grow txt-x-large">@account.Name</h1>
+        @if (admin)
+        {
+            <form method="post" action="/account/logo" enctype="multipart/form-data" class="flex align-center gap center">
+                <label class="btn avatar">
+                    <img src="/account/logo?v=@account.UpdatedAt.Ticks" alt="Account logo" width="64" height="64">
+                    <input type="file" name="logo" accept="image/png,image/jpeg,image/gif,image/webp">
+                    <span class="for-screen-reader">Upload account logo</span>
+                </label>
+                <button class="btn" type="submit">Save logo</button>
+            </form>
+            <form method="post" action="/account/logo/remove">
+                <button class="btn" type="submit">
+                    <img src="/assets/images/remove.svg" alt="" width="20" height="20">
+                    <span class="for-screen-reader">Remove logo</span>
+                </button>
+            </form>
+        }
         <div class="margin-block pad-inline pad-block-start fill-shade border-radius">
             <partial name="Shared/_Invite" model="invite" />
             <hr class="margin-block separator full-width" style="--border-style: solid">

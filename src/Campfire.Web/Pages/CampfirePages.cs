@@ -99,11 +99,14 @@ public sealed class RoomModel(CampfireApp app, CampfireDb db) : CampfirePage(app
     public long RoomId { get; private set; }
     public bool ShowWelcome { get; private set; }
 
-    public async Task<IActionResult> OnGetAsync(long id)
+    public long? FocusMessageId { get; private set; }
+
+    public async Task<IActionResult> OnGetAsync(long id, long? messageId)
     {
         if (SignedOut() is { } redirect)
             return redirect;
-        return await LoadAsync(id) ?? Page();
+        FocusMessageId = messageId;
+        return await LoadAsync(id, messageId) ?? Page();
     }
 
     public async Task<IActionResult> OnPostAsync(long id)
@@ -114,11 +117,24 @@ public sealed class RoomModel(CampfireApp app, CampfireDb db) : CampfirePage(app
         if (form["draft"] == "1")
             await App.SaveDraftAsync(CurrentUser!.Id, id, form["body"].ToString());
         else
-            await App.CreateMessageAsync(CurrentUser!.Id, id, form["body"].ToString(), NullIfEmpty(form["client_message_id"].ToString()));
+        {
+            var body = form["body"].ToString();
+            if (!string.IsNullOrEmpty(form["unfurl_html"]))
+                body += form["unfurl_html"].ToString();
+            var upload = form.Files.GetFile("attachment");
+            IncomingFile? file = null;
+            if (upload is { Length: > 0 })
+            {
+                using var buffer = new MemoryStream();
+                await upload.CopyToAsync(buffer);
+                file = new IncomingFile(upload.FileName, upload.ContentType, buffer.ToArray());
+            }
+            await App.CreateMessageAsync(CurrentUser!.Id, id, body, NullIfEmpty(form["client_message_id"].ToString()), file, true);
+        }
         return Redirect($"/rooms/{id}");
     }
 
-    private async Task<IActionResult?> LoadAsync(long id)
+    private async Task<IActionResult?> LoadAsync(long id, long? messageId)
     {
         if (!await App.IsMemberAsync(CurrentUser!.Id, id))
             return NotFound();
@@ -129,7 +145,9 @@ public sealed class RoomModel(CampfireApp app, CampfireDb db) : CampfirePage(app
             : Room.Name ?? "Room";
         if (Title.Length == 0)
             Title = "Direct";
-        var page = await App.MessagesPageAsync(id, null, null);
+        var page = messageId is null
+            ? await App.MessagesPageAsync(id, null, null)
+            : await App.MessagesAroundAsync(id, messageId.Value);
         Messages = page.Messages;
         Memberships = await App.SidebarAsync(CurrentUser.Id);
         var original = await App.OriginalRoomAsync(CurrentUser.Id);
@@ -282,12 +300,14 @@ public sealed class JoinModel(CampfireApp app, CampfireDb db) : CampfirePage(app
 public sealed class ProfileModel(CampfireApp app, CampfireDb db) : CampfirePage(app, db)
 {
     public IReadOnlyList<Membership> Memberships { get; private set; } = [];
+    public string TransferUrl { get; private set; } = "";
 
     public async Task<IActionResult> OnGetAsync()
     {
         if (SignedOut() is { } redirect)
             return redirect;
         Memberships = await App.SidebarAsync(CurrentUser!.Id);
+        TransferUrl = $"{Request.Scheme}://{Request.Host}/session/transfers/{App.IssueTransfer(CurrentUser.Id)}";
         return Page();
     }
 

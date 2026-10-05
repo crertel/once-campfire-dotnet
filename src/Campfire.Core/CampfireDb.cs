@@ -21,6 +21,7 @@ public sealed class CampfireDb : DbContext
     public DbSet<Ban> Bans => Set<Ban>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<Webhook> Webhooks => Set<Webhook>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -59,5 +60,31 @@ public sealed class CampfireDb : DbContext
 
         model.Entity<Draft>().HasIndex(draft => new { draft.UserId, draft.RoomId }).IsUnique();
         model.Entity<PushSubscription>().HasIndex(subscription => subscription.Endpoint);
+
+        model.Entity<Attachment>().HasIndex(attachment => attachment.MessageId).IsUnique();
+        model.Entity<Attachment>().HasOne(attachment => attachment.Message).WithOne(message => message.Attachment)
+            .HasForeignKey<Attachment>(attachment => attachment.MessageId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    public async Task EnsureReadyAsync(CancellationToken cancellationToken = default)
+    {
+        await Database.EnsureCreatedAsync(cancellationToken);
+        await Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS "Attachments" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_Attachments" PRIMARY KEY AUTOINCREMENT,
+                "MessageId" INTEGER NOT NULL,
+                "FileName" TEXT NOT NULL,
+                "ContentType" TEXT NOT NULL,
+                "ByteSize" INTEGER NOT NULL,
+                "StorageKey" TEXT NOT NULL,
+                "Width" INTEGER NULL,
+                "Height" INTEGER NULL,
+                CONSTRAINT "FK_Attachments_Messages_MessageId" FOREIGN KEY ("MessageId") REFERENCES "Messages" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Attachments_MessageId" ON "Attachments" ("MessageId");
+            """,
+            cancellationToken);
     }
 }

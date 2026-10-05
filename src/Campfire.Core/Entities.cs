@@ -125,6 +125,20 @@ public sealed class Message
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<Boost> Boosts { get; set; } = [];
+    public Attachment? Attachment { get; set; }
+}
+
+public sealed class Attachment
+{
+    public long Id { get; set; }
+    public long MessageId { get; set; }
+    public Message Message { get; set; } = null!;
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long ByteSize { get; set; }
+    public string StorageKey { get; set; } = "";
+    public int? Width { get; set; }
+    public int? Height { get; set; }
 }
 
 public sealed class Boost

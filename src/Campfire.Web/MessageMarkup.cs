@@ -41,12 +41,12 @@ public static class MessageMarkup
         builder.Append("<div class=\"message__body\"><div class=\"message__body-content\"><div class=\"message__meta\"><h3 class=\"message__heading\">");
         builder.Append("<span class=\"message__author\" title=\"").Append(Encode(name)).Append("\"><strong>")
             .Append(Encode(name)).Append("</strong></span>");
-        builder.Append("<a class=\"message__permalink\" href=\"").Append(roomUrl).Append("\"><time class=\"message__timestamp\" datetime=\"")
+        builder.Append("<a class=\"message__permalink\" href=\"").Append(roomUrl).Append("/@").Append(message.Id).Append("\"><time class=\"message__timestamp\" datetime=\"")
             .Append(stamp).Append("\" data-local-time-target=\"time\"></time></a>");
         builder.Append("<span class=\"message__room\"><a href=\"").Append(roomUrl).Append("\">")
             .Append(Encode(roomLabel)).Append("</a></span>");
         builder.Append("</h3></div>");
-        builder.Append("<div dir=\"auto\" data-messages-target=\"body\">").Append(message.Html).Append("</div>");
+        builder.Append("<div dir=\"auto\" data-messages-target=\"body\">").Append(Presentation.Body(message)).Append("</div>");
         builder.Append("<div class=\"boosts flex flex-wrap align-center gap full-width\">");
         foreach (var boost in message.Boosts.OrderBy(item => item.CreatedAt))
         {

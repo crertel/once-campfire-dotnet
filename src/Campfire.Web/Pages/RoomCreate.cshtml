@@ -1,0 +1,100 @@
+@page "/rooms/{kind}/new"
+@model RoomCreateModel
+@{
+    ViewData["Title"] = Model.Kind == "directs" ? "New ping" : "New chat room";
+    var open = Model.Kind == "opens";
+    var direct = Model.Kind == "directs";
+}
+@section Nav {
+    <div class="flex-item-justify-start">
+        <a class="btn" href="/">
+            <img src="/assets/images/arrow-left.svg" alt="" width="20" height="20">
+            <span class="for-screen-reader">Go Back</span>
+        </a>
+    </div>
+}
+@if (direct)
+{
+    <section class="panel">
+        <form method="post" class="flex flex-column gap">
+            <h1 class="txt-large">Start a ping</h1>
+            <p class="margin-none">Choose who to ping. Direct rooms stay private to those people.</p>
+            <input class="input" type="search" placeholder="Filter people" data-filter>
+            <div class="flex flex-column gap" data-people>
+                @foreach (var person in Model.People.Where(person => person.Id != Model.CurrentUser?.Id))
+                {
+                    <label class="flex align-center gap" data-name="@person.Name">
+                        <input type="checkbox" name="user_ids" value="@person.Id">
+                        <img src="@MessageMarkup.AvatarUrl(person)" alt="" width="32" height="32">
+                        <span>@person.Name</span>
+                    </label>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <p role="alert">@Model.Error</p>
+            }
+            <button class="btn btn--reversed" type="submit">
+                <img src="/assets/images/check.svg" alt="" width="20" height="20">
+                <span class="for-screen-reader">Start Ping</span>
+            </button>
+        </form>
+    </section>
+}
+else
+{
+    <section class="panel txt-align-center">
+        <form method="post" class="flex flex-column gap">
+            <div class="flex align-center gap">
+                <label class="flex-item-grow txt-large">
+                    <input class="input full-width" name="room[name]" value="@Model.Name" required autofocus placeholder="Name the room">
+                    <span class="for-screen-reader">Name this room</span>
+                </label>
+            </div>
+            <section class="room-access margin-block pad-inline fill-shade border-radius">
+                <ul class="flex flex-column gap margin-none pad">
+                    <li class="flex align-center gap margin-none">
+                        <img src="/assets/images/everyone.svg" alt="" width="32" height="32" class="colorize--black">
+                        <div class="min-width overflow-ellipsis"><strong>Everyone</strong></div>
+                        <a class="btn--faux flex-inline" href="@(open ? "/rooms/closeds/new" : "/rooms/opens/new")">
+                            <label class="switch">
+                                @if (open)
+                                {
+                                    <input type="checkbox" class="switch__input" checked disabled>
+                                }
+                                else
+                                {
+                                    <input type="checkbox" class="switch__input" disabled>
+                                }
+                                <span class="switch__btn round"></span>
+                                <span class="for-screen-reader">@(open ? "Give only some access to this room" : "Give everyone access to this room")</span>
+                            </label>
+                        </a>
+                    </li>
+                    @if (!open)
+                    {
+                        <li><input class="input full-width" type="search" placeholder="Filter people" data-filter></li>
+                        @foreach (var person in Model.People)
+                        {
+                            <li class="flex align-center gap" data-name="@person.Name">
+                                <label class="flex align-center gap flex-item-grow">
+                                    <input type="checkbox" name="user_ids" value="@person.Id" @(person.Id == Model.CurrentUser?.Id ? "checked" : "")>
+                                    <img src="@MessageMarkup.AvatarUrl(person)" alt="" width="32" height="32">
+                                    <span>@person.Name</span>
+                                </label>
+                            </li>
+                        }
+                    }
+                </ul>
+            </section>
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <p role="alert">@Model.Error</p>
+            }
+            <button class="btn btn--reversed center txt-large" type="submit">
+                <img src="/assets/images/check.svg" alt="" width="20" height="20">
+                <span class="for-screen-reader">Create room</span>
+            </button>
+        </form>
+    </section>
+}

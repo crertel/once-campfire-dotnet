@@ -4,13 +4,13 @@
     var user = Context.Items["User"] as User;
     var account = Context.Items["Account"] as Account;
     var userId = user?.Id ?? 0;
-    var directs = Model.Where(membership => membership.Room.Kind == RoomKind.Direct).ToList();
-    var shared = Model.Where(membership => membership.Room.Kind != RoomKind.Direct).ToList();
+    var directs = Model.Where(membership => membership.Room.Kind == RoomKind.Direct && membership.Involvement != Involvement.Invisible).ToList();
+    var shared = Model.Where(membership => membership.Room.Kind != RoomKind.Direct && membership.Involvement != Involvement.Invisible).ToList();
     var canCreate = user?.IsAdministrator == true || account?.RestrictRoomCreationToAdministrators != true;
 }
 <div class="sidebar__container overflow-y overflow-hide-scrollbar" data-live>
     <div class="directs gap overflow-x overflow-hide-scrollbar">
-        <button class="direct direct__new" type="button">
+        <a class="direct direct__new" href="/rooms/directs/new">
             <span class="avatar avatar--icon">
                 <img src="/assets/images/messages-add.svg" alt="" width="20" height="20" class="colorize--black">
             </span>
@@ -18,7 +18,7 @@
                 <span class="for-screen-reader">New</span>
                 <span class="txt-small overflow-clip">Ping</span>
             </span>
-        </button>
+        </a>
         @foreach (var membership in directs)
         {
             var label = MessageMarkup.RoomLabel(membership.Room, userId);
@@ -45,9 +45,9 @@
         }
         @if (canCreate)
         {
-            <button class="rooms__new-btn btn room align-center gap txt-reversed" type="button" aria-label="New Chat Room">
+            <a class="rooms__new-btn btn room align-center gap txt-reversed" href="/rooms/opens/new" aria-label="New Chat Room">
                 <img src="/assets/images/add.svg" alt="" width="20" height="20">
-            </button>
+            </a>
         }
     </div>
     <button class="btn sidebar__toggle" type="button">

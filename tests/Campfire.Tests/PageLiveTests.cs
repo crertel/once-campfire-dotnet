@@ -32,7 +32,7 @@ public sealed class PageLiveTests
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Campfire:Database"] = Path.Combine(directory, "campfire.sqlite"),
+            ["Campfire:Database"] = Path.Combine(directory, "db", "campfire.sqlite"),
         });
         var app = CampfireWeb.Build(builder);
         await app.StartAsync();

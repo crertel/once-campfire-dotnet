@@ -69,6 +69,23 @@ public static partial class Unfurl
         return new LinkPreview(pageUrl, title, description, image);
     }
 
+    public static bool Publishable(LinkPreview preview, Func<string, IReadOnlyList<IPAddress>> dns)
+    {
+        if (string.IsNullOrWhiteSpace(preview.Title) || string.IsNullOrWhiteSpace(preview.Description) || string.IsNullOrWhiteSpace(preview.Url))
+            return false;
+        try
+        {
+            EnsurePublic(preview.Url, dns);
+            if (!string.IsNullOrWhiteSpace(preview.ImageUrl))
+                EnsurePublic(preview.ImageUrl, dns);
+        }
+        catch (Exception exception) when (exception is AppException or ViolationException or UnresolvableException)
+        {
+            return false;
+        }
+        return true;
+    }
+
     public static void EnsurePublic(string url, Func<string, IReadOnlyList<IPAddress>> dns)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))

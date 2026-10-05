@@ -20,6 +20,7 @@ public sealed class CampfireHub(CampfireApp app, LiveConnections connections) : 
         }
 
         Context.Items["userId"] = user.Id;
+        Context.Items["userName"] = user.Name;
         Context.Items["rooms"] = new HashSet<long>();
         connections.Add(user.Id, Context);
         await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(user.Id));
@@ -49,6 +50,20 @@ public sealed class CampfireHub(CampfireApp app, LiveConnections connections) : 
             RoomId = roomId,
             UserId = userId,
             Present = true,
+        });
+    }
+
+    public async Task Typing(long roomId, bool typing)
+    {
+        var userId = RequireUser();
+        if (!Rooms().Contains(roomId))
+            return;
+        await Clients.OthersInGroup(RoomGroup(roomId)).SendAsync("Typing", new
+        {
+            roomId,
+            userId,
+            name = Context.Items["userName"] as string ?? "",
+            typing,
         });
     }
 

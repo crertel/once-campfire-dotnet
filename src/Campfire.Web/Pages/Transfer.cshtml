@@ -1,0 +1,18 @@
+@page "/session/transfers/{id}"
+@model TransferModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+<section class="panel txt-align-center">
+    @if (!string.IsNullOrEmpty(Model.Error))
+    {
+        <p role="alert">@Model.Error</p>
+    }
+    else
+    {
+        <form id="transfer" method="post">
+            <button class="btn btn--reversed" type="submit">Sign in on this device</button>
+        </form>
+        <script>document.getElementById("transfer")?.requestSubmit()</script>
+    }
+</section>
