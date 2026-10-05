@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Campfire.Bench.Cli</RootNamespace>
+    <AssemblyName>campfire-bench</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Campfire.Bench\Campfire.Bench.csproj" />
+  </ItemGroup>
+</Project>

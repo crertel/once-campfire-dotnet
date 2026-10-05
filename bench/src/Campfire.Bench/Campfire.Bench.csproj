@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Campfire.Bench</RootNamespace>
+    <AssemblyName>Campfire.Bench</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Campfire.Bench.Tests" />
+  </ItemGroup>
+</Project>

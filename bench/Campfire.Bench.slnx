@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Campfire.Bench/Campfire.Bench.csproj" />
+  <Project Path="src/Campfire.Bench.Cli/Campfire.Bench.Cli.csproj" />
+  <Project Path="tests/Campfire.Bench.Tests/Campfire.Bench.Tests.csproj" />
+</Solution>

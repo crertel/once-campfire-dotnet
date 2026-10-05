@@ -48,6 +48,7 @@ app/assets/builds/*
 /result-*
 
 # .NET build output. Rails scripts live in /bin, so that directory stays tracked.
+/bench/**/bin/
 **/obj/
 *.csproj.user
 .vs/
