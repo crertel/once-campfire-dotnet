@@ -24,72 +24,30 @@
           }
         );
 
-      # Native gems and libvips are loaded by the Rails process. `nix run` does not
-      # apply a dev-shell hook, so the app exports these paths itself.
-      libraryPath =
-        pkgs:
-        pkgs.lib.makeLibraryPath [
-          pkgs.stdenv.cc.cc.lib
-          pkgs.sqlite
-          pkgs.openssl
-          pkgs.zlib
-          pkgs.libyaml
-          pkgs.libffi
-          pkgs.libxml2
-          pkgs.libxslt
-          pkgs.vips
-          pkgs.glib
-          pkgs.ffmpeg.lib
-          pkgs.icu
-        ];
-
-      pkgConfigPath =
-        pkgs:
-        pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" [
-          pkgs.sqlite
-          pkgs.openssl
-          pkgs.zlib
-          pkgs.libyaml
-          pkgs.libffi
-          pkgs.libxml2
-          pkgs.libxslt
-          pkgs.vips
-          pkgs.glib
-          pkgs.ffmpeg
-          pkgs.icu
-        ];
-
       campfireServer =
         pkgs:
         pkgs.writeShellApplication {
           name = "campfire-server";
           runtimeInputs = [
-            pkgs.ruby_3_4
+            pkgs.dotnetCorePackages.sdk_11_0
             pkgs.git
-            pkgs.redis
-            pkgs.sqlite
-            pkgs.ffmpeg
-            pkgs.vips
-            pkgs.pkg-config
-            pkgs.gnumake
-            pkgs.stdenv.cc
             pkgs.coreutils
             pkgs.gnugrep
-            pkgs.openssl
+            pkgs.util-linux
+            pkgs.cacert
           ];
           runtimeEnv = {
-            CC = "gcc";
-            CXX = "g++";
-            PKG_CONFIG_PATH = pkgConfigPath pkgs;
-            LD_LIBRARY_PATH = libraryPath pkgs;
-            LIBRARY_PATH = libraryPath pkgs;
+            DOTNET_ROOT = "${pkgs.dotnetCorePackages.sdk_11_0}/share/dotnet";
+            DOTNET_CLI_TELEMETRY_OPTOUT = "1";
+            DOTNET_NOLOGO = "1";
+            DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";
+            DOTNET_MULTILEVEL_LOOKUP = "0";
             SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            GIT_SSL_CAINFO = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
           };
           meta = {
             mainProgram = "campfire-server";
-            description = "Run the Campfire development server and a private Redis, then stop both on exit";
+            description = "Run the ASP.NET Core Campfire server and stop it on exit";
           };
           text = builtins.readFile ./nix/campfire-server.sh;
         };
@@ -150,7 +108,7 @@
               echo "once-campfire-dotnet"
               echo "  SDK: $(dotnet --version)"
               echo "  redis-server, sqlite3, ffmpeg, and vips are on PATH"
-              echo "  nix run .#server -- [--port PORT] starts Campfire and Redis"
+              echo "  nix run .#server -- [--port PORT] starts the ASP.NET Core server"
             '';
           };
         }

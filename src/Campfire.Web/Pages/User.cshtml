@@ -1,0 +1,30 @@
+@page "/users/{id:long}"
+@model UserModel
+@{
+    ViewData["Title"] = Model.Shown?.Name ?? "Person";
+}
+@if (Model.Shown is not null)
+{
+    <h1>@Model.Shown.Name</h1>
+    <p>@Model.Shown.Bio</p>
+    <p>@Model.Shown.Status</p>
+    @if (Model.Shown.Avatar is not null)
+    {
+        <img src="/users/@Model.Shown.Id/avatar" alt="" />
+    }
+    @if (Model.CurrentUser?.IsAdministrator == true && Model.Shown.Id != Model.CurrentUser.Id)
+    {
+        @if (Model.Shown.Status == UserStatus.Banned)
+        {
+            <form method="post" action="/users/@Model.Shown.Id/unban" asp-antiforgery="false">
+                <button type="submit">Unban</button>
+            </form>
+        }
+        else
+        {
+            <form method="post" action="/users/@Model.Shown.Id/ban">
+                <button type="submit">Ban</button>
+            </form>
+        }
+    }
+}

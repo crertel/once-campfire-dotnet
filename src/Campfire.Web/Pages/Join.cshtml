@@ -1,0 +1,16 @@
+@page "/join/{code}"
+@model JoinModel
+@{
+    ViewData["Title"] = "Join";
+}
+<h1>Join Campfire</h1>
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+    <p class="error">@Model.Error</p>
+}
+<form method="post">
+    <label>Name <input name="name" required /></label>
+    <label>Email <input name="email_address" type="email" required /></label>
+    <label>Password <input name="password" type="password" required /></label>
+    <button type="submit">Join</button>
+</form>

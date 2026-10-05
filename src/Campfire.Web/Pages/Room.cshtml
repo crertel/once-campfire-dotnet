@@ -1,0 +1,25 @@
+@page "/rooms/{id:long}"
+@model RoomModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+<h1>@Model.Title</h1>
+<div id="messages">
+    @foreach (var message in Model.Messages)
+    {
+        <article class="message" id="message-@message.Id">
+            <p class="author">@message.Creator.Name</p>
+            <div class="body">@Html.Raw(message.Html)</div>
+            @foreach (var boost in message.Boosts.OrderBy(item => item.CreatedAt))
+            {
+                <span class="boost">@boost.Content</span>
+            }
+        </article>
+    }
+</div>
+<form method="post">
+    <label for="composer">Message</label>
+    <textarea id="composer" name="body">@Model.Draft</textarea>
+    <button type="submit">Send</button>
+</form>
+<component type="typeof(RoomLive)" render-mode="Static" param-RoomId="@Model.RoomId" />

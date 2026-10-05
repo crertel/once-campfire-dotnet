@@ -1,0 +1,15 @@
+@page "/"
+@model IndexModel
+@{
+    ViewData["Title"] = "Set up Campfire";
+}
+@if (Model.CurrentUser is null)
+{
+    <h1>Set up Campfire</h1>
+    <form method="post" action="/first_run">
+        <label>Name <input name="user[name]" autocomplete="name" required /></label>
+        <label>Email <input name="user[email_address]" type="email" autocomplete="email" required /></label>
+        <label>Password <input name="user[password]" type="password" autocomplete="new-password" required /></label>
+        <button type="submit">Create the campfire</button>
+    </form>
+}

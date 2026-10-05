@@ -1,0 +1,18 @@
+@page "/users/me/sidebar"
+@model SidebarModel
+@{
+    ViewData["Title"] = "Rooms";
+}
+<h1>Rooms</h1>
+<ul>
+    @foreach (var membership in Model.Memberships)
+    {
+        <li>
+            <a href="/rooms/@membership.RoomId">@(membership.Room.Name ?? "Direct")</a>
+            @if (membership.Unread)
+            {
+                <span class="unread">unread</span>
+            }
+        </li>
+    }
+</ul>

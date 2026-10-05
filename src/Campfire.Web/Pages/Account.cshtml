@@ -1,0 +1,39 @@
+@page "/account"
+@model AccountModel
+@{
+    ViewData["Title"] = "Account";
+}
+<h1>Account</h1>
+@if (Model.Account is not null)
+{
+    <p>Join code <code id="join-code">@Model.Account.JoinCode</code></p>
+    @if (Model.CurrentUser?.IsAdministrator == true)
+    {
+        <form method="post">
+            <input type="hidden" name="reset_join_code" value="1" />
+            <button type="submit">Reset join code</button>
+        </form>
+        <form method="post">
+            <input type="hidden" name="settings" value="1" />
+            <label>Custom styles <textarea name="custom_styles">@Model.Account.CustomStyles</textarea></label>
+            <label>
+                @if (Model.Account.RestrictRoomCreationToAdministrators)
+                {
+                    <input type="checkbox" name="restrict" value="1" checked />
+                }
+                else
+                {
+                    <input type="checkbox" name="restrict" value="1" />
+                }
+                Only administrators create rooms
+            </label>
+            <button type="submit">Save</button>
+        </form>
+    }
+}
+<ul>
+    @foreach (var user in Model.Users)
+    {
+        <li><a href="/users/@user.Id">@user.Name</a> <span>@user.Role</span></li>
+    }
+</ul>
